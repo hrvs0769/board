@@ -1,707 +1,1679 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>手机版无边界白板 (撤销修正, 橡皮擦预览)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>无边白板</title>
     <style>
-        /* 样式与之前版本基本相同 */
-        body { overscroll-behavior: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 0; overflow: hidden; }
-        #whiteboard-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; }
-        canvas { display: block; touch-action: none; background-color: white; width: 100%; height: 100%; }
-        .toolbar { position: fixed; bottom: 0; left: 0; width: 100%; background-color: rgba(240, 240, 240, 0.95); padding: 8px 5px; display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 5px; border-top: 1px solid #ccc; z-index: 10; box-sizing: border-box; }
-        .toolbar button { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; background-color: white; cursor: pointer; font-size: 12px; min-width: 45px; text-align: center; transition: background-color 0.2s, border-color 0.2s; user-select: none; -webkit-tap-highlight-color: transparent; }
-        .toolbar button.active { background-color: #d1e7ff; border-color: #0d6efd; font-weight: bold; }
-        .toolbar button:active { background-color: #eee; }
-        .toolbar button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #f8f9fa; }
-        #instructions { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 100; padding: 20px; box-sizing: border-box; }
-        #instructions-content { background-color: white; padding: 25px; border-radius: 8px; max-width: 90%; max-height: 90%; overflow-y: auto; text-align: left; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        #instructions-content h2 { margin-top: 0; margin-bottom: 15px; font-size: 1.2em; font-weight: bold; text-align: center; }
-        #instructions-content ul { list-style: disc; margin-left: 20px; margin-bottom: 15px; }
-        #instructions-content li { margin-bottom: 8px; }
-        #instructions-content button { display: block; margin: 15px auto 0; padding: 10px 20px; background-color: #0d6efd; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
-        #help-btn { position: fixed; top: 15px; right: 15px; width: 40px; height: 40px; background-color: rgba(255, 255, 255, 0.8); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); cursor: pointer; z-index: 50; border: 1px solid #ddd; -webkit-tap-highlight-color: transparent; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overscroll-behavior: none;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            background-color: #F8F8F8;
+            position: relative; /* 设置相对定位，使子元素可以绝对定位 */
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            border-bottom: 1px solid #E0E0E0;
+            background-color: white;
+        }
+        
+        .header-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .header-right {
+            color: #007AFF;
+            font-size: 16px;
+        }
+        
+        .tabs {
+            display: flex;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-bottom: 1px solid #E0E0E0;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 12px 0;
+            text-align: center;
+            font-size: 15px;
+            color: #333;
+        }
+        
+        .tab.active {
+            color: #007AFF;
+            border-bottom: 2px solid #007AFF;
+        }
+        
+        #instruction-btn {
+            color: #333;
+            text-decoration: none;
+            border-bottom: none;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 55px; /* 调整为标签栏下方，避开"使用说明"标签 */
+            right: 15px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #E0E0E0;
+            border-radius: 20px;
+            padding: 4px 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .scale {
+            padding: 6px 8px;
+            font-size: 15px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .control-button {
+            padding: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            background-color: white;
+        }
+        
+        canvas {
+            position: absolute;
+            touch-action: none;
+        }
+        
+        .toolbar {
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-top: 1px solid #E0E0E0;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+        }
+        
+        .tool {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-size: 12px;
+            flex: 1;
+            padding: 0 2px;
+        }
+        
+        .tool.active {
+            color: #007AFF;
+        }
+        
+        .tool-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* Popup styles */
+        .popup {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            display: none;
+        }
+        
+        .popup.active {
+            display: block;
+        }
+        
+        .popup-item {
+            padding: 15px 25px;
+            text-align: center;
+            border-bottom: 1px solid #E0E0E0;
+        }
+        
+        .popup-item:last-child {
+            border-bottom: none;
+        }
+        
+        .eraser-cursor {
+            position: absolute;
+            border: 1px solid #999;
+            background-color: rgba(200, 200, 200, 0.3);
+            border-radius: 50%;
+            pointer-events: none;
+            display: none;
+            z-index: 50;
+        }
+        
+        .instruction-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 200;
+            display: none;
+        }
+        
+        .instruction-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            width: 80%;
+            max-height: 80%;
+            border-radius: 12px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .instruction-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .instruction-item {
+            margin-bottom: 12px;
+        }
+        
+        .instruction-close {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #007AFF;
+            color: white;
+            border-radius: 8px;
+        }
+        
+        /* 文本输入相关样式 */
+        .text-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 150;
+            display: none;
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        .text-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            padding: 15px;
+        }
+        
+        .text-input-wrapper {
+            margin-bottom: 15px;
+        }
+        
+        #text-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .text-buttons {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .text-button {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        #text-cancel {
+            margin-right: 10px;
+            background-color: #f2f2f2;
+            color: #333;
+        }
+        
+        #text-confirm {
+            background-color: #007AFF;
+            color: white;
+        }
+        
+        .text-display {
+            position: absolute;
+            font-size: 16px;
+            color: #333;
+            padding: 8px;
+            border: 1px dashed #007AFF;
+            background-color: rgba(255, 255, 255, 0.7);
+            transform-origin: center center;
+            cursor: move;
+            user-select: none;
+            z-index: 50;
+            display: none;
+        }
+        
+        .text-edit-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            z-index: 200;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        
+        .text-edit-btn {
+            padding: 12px 24px;
+            text-align: center;
+            cursor: pointer;
+            min-width: 100px;
+            font-size: 16px;
+            user-select: none;
+        }
+        
+        #text-edit-confirm {
+            background-color: #007AFF;
+            color: white;
+            font-weight: bold;
+        }
+        
+        #text-edit-cancel {
+            background-color: #f2f2f2;
+            color: #333;
+            border-right: 1px solid #ddd;
+            font-weight: bold;
+        }
     </style>
 </head>
-<body class="overflow-hidden">
-
-    <div id="whiteboard-container">
-        <canvas id="whiteboard"></canvas>
-    </div>
-
-    <div id="help-btn">📖</div>
-
-    <div class="toolbar">
-        <button id="pen-btn" class="active">笔✏️</button>
-        <button id="eraser-btn">橡皮🟨</button>
-        <button id="clear-btn">清除🗑️</button>
-        <button id="undo-btn" disabled>撤销↩️</button>
-        <button class="canvas-btn active" data-canvas="0">板1</button>
-        <button class="canvas-btn" data-canvas="1">板2</button>
+<body>
+    <div class="app">
+        <div class="canvas-container">
+            <canvas id="canvas1"></canvas>
+            <canvas id="canvas2"></canvas>
+            <canvas id="canvas3"></canvas>
+            <div class="eraser-cursor" id="eraser-cursor"></div>
+            <div class="text-display" id="text-display"></div>
+            <div id="text-edit-controls" style="display: none; position: fixed; bottom: 20px; left: 0; right: 0; z-index: 99999; padding: 10px; pointer-events: auto;">
+                <div style="max-width: 300px; margin: 0 auto; display: flex; justify-content: space-between; background: rgba(255,255,255,0.9); border-radius: 10px; padding: 5px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                    <div id="text-edit-cancel-btn" style="flex: 1; text-align: center; background: #f2f2f2; color: #333; padding: 15px 0; margin-right: 5px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); user-select: none; pointer-events: auto;">取消</div>
+                    <div id="text-edit-confirm-btn" style="flex: 1; text-align: center; background: #007AFF; color: white; padding: 15px 0; margin-left: 5px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); user-select: none; pointer-events: auto;">确定</div>
+                </div>
+            </div>
         </div>
-
-    <div id="instructions">
-        <div id="instructions-content">
-            <h2>操作说明</h2>
-            <ul>
-                <li><b>画笔/橡皮擦:</b> 单指在屏幕上滑动进行绘制或擦除。</li>
-                <li><b>缩放:</b> 双指捏合或张开来缩小或放大画面 (0.1倍 ~ 10倍)。</li>
-                <li><b>平移:</b> 双指在屏幕上一起滑动来移动画面。</li>
-                <li><b>撤销:</b> 最多可撤销当前画板的 10 步操作。</li>
-                <li><b>切换画板:</b> 点击 "板1" 或 "板2" 切换不同的绘图区域，内容会保留。</li>
-                <li><b>开发者:</b> 惠荣VS0769，微信DDZDDM0430</li>
-            </ul>
-            <button id="close-instructions">我知道了</button>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="1">画板1</div>
+            <div class="tab" data-tab="2">画板2</div>
+            <div class="tab" data-tab="3">画板3</div>
+            <div class="tab" id="instruction-btn">说明</div>
+        </div>
+        
+        <div class="controls">
+            <div class="scale" id="scale-display">100%</div>
+            <div class="control-button" id="reset-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#333"><path d="M440-42v-80q-125-14-214.5-103.5T122-440H42v-80h80q14-125 103.5-214.5T440-838v-80h80v80q125 14 214.5 103.5T838-520h80v80h-80q-14 125-103.5 214.5T520-122v80h-80Zm40-158q116 0 198-82t82-198q0-116-82-198t-198-82q-116 0-198 82t-82 198q0 116 82 198t198 82Zm0-120q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47Zm0-80q33 0 56.5-23.5T560-480q0-33-23.5-56.5T480-560q-33 0-56.5 23.5T400-480q0 33 23.5 56.5T480-400Zm0-80Z"/></svg>
+            </div>
+        </div>
+                
+        <div class="toolbar">
+            <div class="tool active" data-tool="pen">
+                <div class="tool-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M167-120q-21 5-36.5-10.5T120-167l40-191 198 198-191 40Zm191-40L160-358l458-458q23-23 57-23t57 23l84 84q23 23 23 57t-23 57L358-160Zm317-600L261-346l85 85 414-414-85-85Z"/></svg>
+                </div>
+                <div>画笔</div>
+            </div>
+            <div class="tool" data-tool="shape">
+                <div class="tool-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M200-80q-50 0-85-35t-35-85q0-39 22.5-69.5T160-313v-334q-35-13-57.5-43.5T80-760q0-50 35-85t85-35q39 0 69.5 22.5T313-800h334q12-35 42.5-57.5T760-880q50 0 85 35t35 85q0 40-22.5 70.5T800-647v334q35 13 57.5 43.5T880-200q0 50-35 85t-85 35q-39 0-69.5-22.5T647-160H313q-13 35-43.5 57.5T200-80Zm0-640q17 0 28.5-11.5T240-760q0-17-11.5-28.5T200-800q-17 0-28.5 11.5T160-760q0 17 11.5 28.5T200-720Zm560 0q17 0 28.5-11.5T800-760q0-17-11.5-28.5T760-800q-17 0-28.5 11.5T720-760q0 17 11.5 28.5T760-720ZM313-240h334q9-26 28-45t45-28v-334q-26-9-45-28t-28-45H313q-9 26-28 45t-45 28v334q26 9 45 28t28 45Zm447 80q17 0 28.5-11.5T800-200q0-17-11.5-28.5T760-240q-17 0-28.5 11.5T720-200q0 17 11.5 28.5T760-160Zm-560 0q17 0 28.5-11.5T240-200q0-17-11.5-28.5T200-240q-17 0-28.5 11.5T160-200q0 17 11.5 28.5T200-160Zm0-600Zm560 0Zm0 560Zm-560 0Z"/></svg>
+                </div>
+                <div>形状</div>
+            </div>
+            <div class="tool" data-tool="text">
+                <div class="tool-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M420-160v-520H200v-120h560v120H540v520H420Z"/></svg>
+                </div>
+                <div>文本</div>
+            </div>
+            <div class="tool" data-tool="eraser">
+                <div class="tool-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M690-240h190v80H610l80-80Zm-500 80-85-85q-23-23-23.5-57t22.5-58l440-456q23-24 56.5-24t56.5 23l199 199q23 23 23 57t-23 57L520-160H190Zm296-80 314-322-198-198-442 456 64 64h262Zm-6-240Z"/></svg>
+                </div>
+                <div>橡皮</div>
+            </div>
+            <div class="tool" data-tool="undo">
+                <div class="tool-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M280-200v-80h284q63 0 109.5-40T720-420q0-60-46.5-100T564-560H312l104 104-56 56-200-200 200-200 56 56-104 104h252q97 0 166.5 63T800-420q0 94-69.5 157T564-200H280Z"/></svg>
+                </div>
+                <div>撤销</div>
+            </div>
+            <div class="tool" data-tool="more">
+                <div class="tool-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z"/></svg>
+                </div>
+                <div>更多</div>
+            </div>
         </div>
     </div>
-
+    
+    <div class="popup" id="shape-popup">
+        <div class="popup-item" data-shape="rect">绘制矩形</div>
+        <div class="popup-item" data-shape="circle">绘制圆形</div>
+        <div class="popup-item" data-shape="line">绘制直线</div>
+    </div>
+    
+    <div class="popup" id="more-popup">
+        <div class="popup-item" id="clear-btn">清除当前画板内容</div>
+        <div class="popup-item" id="screenshot-btn">保存jpg图片</div>
+    </div>
+    
+    <div class="instruction-overlay" id="instruction-overlay">
+        <div class="instruction-container">
+            <div class="instruction-title">说明</div>
+            <div class="instruction-item">1. 画笔：默认选中画笔，2px粗细</div>
+            <div class="instruction-item">2. 橡皮：切换到橡皮，可擦除画板内容</div>
+            <div class="instruction-item">3. 撤销：点击一次将回退一次操作</div>
+            <div class="instruction-item">4. 形状：点击后可选择矩形、圆形或直线进行绘制</div>
+            <div class="instruction-item">5. 更多：可插入文字、清除画板内容或截图保存</div>
+            <div class="instruction-item">6. 插入文字：输入文字后，可双指缩放、长按移动，点击确定保存</div>
+            <div class="instruction-item">7. 画板：可切换不同画板，内容互不影响</div>
+            <div class="instruction-item">8. 缩放：双指捏合可缩放画板内容（10%-1000%）</div>
+            <div class="instruction-item">9. 移动：双指同向滑动可移动画板内容</div>
+            <div class="instruction-item">10. 恢复：点击恢复按钮可重置缩放和位置</div>
+            <div class="instruction-close" id="instruction-close">关闭</div>
+        </div>
+    </div>
+    
+    <!-- 文本输入编辑区域 -->
+    <div class="text-overlay" id="text-overlay">
+        <div class="text-container" id="text-container">
+            <div class="text-input-wrapper">
+                <input type="text" id="text-input" maxlength="10" placeholder="请输入内容，不超过10个字">
+            </div>
+            <div class="text-buttons">
+                <div class="text-button" id="text-cancel">取消</div>
+                <div class="text-button" id="text-confirm">确定</div>
+            </div>
+        </div>
+    </div>
+    
     <script>
-        const canvas = document.getElementById('whiteboard');
-        const ctx = canvas.getContext('2d');
-        const container = document.getElementById('whiteboard-container');
-
-        // --- 常量 ---
-        const VIRTUAL_CANVAS_MULTIPLIER = 10;
-        const MAX_UNDO_STEPS = 10;
-        const BASE_LINE_WIDTH = 2; // Visual width in CSS pixels
-        const ERASER_WIDTH_MULTIPLIER = 8;
-        const ERASER_PREVIEW_COLOR = 'rgba(165, 42, 42, 0.4)'; // Semi-transparent brown
-
-        // --- 畫板尺寸 ---
-        let screenWidth = window.innerWidth;
-        let screenHeight = window.innerHeight;
-        let largeCanvasWidth = screenWidth * VIRTUAL_CANVAS_MULTIPLIER;
-        let largeCanvasHeight = screenHeight * VIRTUAL_CANVAS_MULTIPLIER;
-        let dpr = window.devicePixelRatio || 1;
-
-        // --- 縮放限制 ---
-        const initialScaleFactor = 1.0;
-        const minZoomFactor = 0.1;
-        const maxZoomFactor = 10.0;
-        const initialInnerScale = dpr; // Initial scale corresponds to 1x zoom factor
-        const minInnerScale = minZoomFactor * initialInnerScale;
-        const maxInnerScale = maxZoomFactor * initialInnerScale;
-
-        // --- 狀態變量 ---
-        let isDrawing = false;
-        let isPanningOrZooming = false;
-        let currentTool = 'pen';
-
-        // *** 將畫板數量改為 2 ***
-        let canvasesState = Array.from({ length: 2 }, () => ({
-            paths: [],
-            history: [],
-            view: {
-                scale: initialInnerScale,
-                centerX: largeCanvasWidth / 2,
-                centerY: largeCanvasHeight / 2,
-            },
-            debug: false // 调试标志，设为true时输出详细日志
-        }));
-        let currentCanvasIndex = 0;
-
-        let currentPath = null;
-        let activeTouches = {};
-        let initialPinchDistance = null;
-        let initialPinchMidpoint = null;
-        let lastPanMidpoint = null;
-        let pinchStartScale = null;
-        let lastTouchPagePos = null; // *** 用於橡皮擦預覽 ***
-
-        let canvasOffset = { left: 0, top: 0 };
-
-        // --- 工具欄按鈕 ---
-        const penBtn = document.getElementById('pen-btn');
-        const eraserBtn = document.getElementById('eraser-btn');
-        const clearBtn = document.getElementById('clear-btn');
-        const undoBtn = document.getElementById('undo-btn');
-        const canvasBtns = document.querySelectorAll('.canvas-btn');
-        const instructionsPanel = document.getElementById('instructions');
-        const closeInstructionsBtn = document.getElementById('close-instructions');
-
-        // --- 初始化 ---
-        function initializeCanvas() {
-            updateCanvasOffset();
-            resizeCanvas();
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            loadCanvasState(currentCanvasIndex);
-            redrawCurrentCanvas();
-            updateToolbar();
-            updateUndoButtonState();
-            // console.log(`Initial Large Canvas: ${largeCanvasWidth}x${largeCanvasHeight}`);
-            // console.log(`Initial Viewport: scale=${canvasesState[currentCanvasIndex].view.scale}, center=(${canvasesState[currentCanvasIndex].view.centerX}, ${canvasesState[currentCanvasIndex].view.centerY})`);
-        }
-
-        // --- 更新 Canvas 偏移量 ---
-        function updateCanvasOffset() {
-            const rect = canvas.getBoundingClientRect();
-            canvasOffset.left = rect.left;
-            canvasOffset.top = rect.top;
-        }
-
-        // --- 調整畫布尺寸 ---
-        function resizeCanvas() {
-            updateCanvasOffset();
-            const oldDPR = dpr; // Store old DPR for potential adjustments
-            dpr = window.devicePixelRatio || 1;
-            screenWidth = window.innerWidth;
-            screenHeight = window.innerHeight;
-
-            const oldLargeWidth = largeCanvasWidth;
-            const oldLargeHeight = largeCanvasHeight;
-            largeCanvasWidth = screenWidth * VIRTUAL_CANVAS_MULTIPLIER;
-            largeCanvasHeight = screenHeight * VIRTUAL_CANVAS_MULTIPLIER;
-
-            canvas.style.width = `${screenWidth}px`;
-            canvas.style.height = `${screenHeight}px`;
-            canvas.width = screenWidth * dpr;
-            canvas.height = screenHeight * dpr;
-
-            // Adjust view center and scale on resize
-            canvasesState.forEach(state => {
-                // Adjust center to maintain relative position
-                state.view.centerX = state.view.centerX / oldLargeWidth * largeCanvasWidth;
-                state.view.centerY = state.view.centerY / oldLargeHeight * largeCanvasHeight;
-                // Adjust scale based on DPR change if needed, or keep visual scale constant
-                // Keeping visual scale constant might be more intuitive
-                // state.view.scale = state.view.scale / oldDPR * dpr;
-
-                // Ensure scale is within limits
-                state.view.scale = Math.max(minInnerScale, Math.min(maxInnerScale, state.view.scale));
-            });
-
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            redrawCurrentCanvas();
-        }
-
-        // --- 座標轉換 ---
-        function pageToLargeCanvas(pagePos) {
-            const view = canvasesState[currentCanvasIndex].view;
-            const cssX = pagePos.pageX - canvasOffset.left;
-            const cssY = pagePos.pageY - canvasOffset.top;
-            const contextX = cssX * dpr;
-            const contextY = cssY * dpr;
-            const contextCenterX = canvas.width / 2;
-            const contextCenterY = canvas.height / 2;
-            const offsetX = (contextX - contextCenterX) / view.scale;
-            const offsetY = (contextY - contextCenterY) / view.scale;
-            const largeX = view.centerX + offsetX;
-            const largeY = view.centerY + offsetY;
-            return { x: largeX, y: largeY };
-        }
-
-        // --- 繪圖邏輯 ---
-        function startDrawing(touch) {
-            if (isPanningOrZooming) return;
-            isDrawing = true;
-            const largePos = pageToLargeCanvas(touch);
-
-            // *** 撤銷功能：保存繪製前的狀態 ***
-            saveHistory(); // Call before creating the path
-
-            currentPath = {
-                points: [largePos],
-                color: currentTool === 'pen' ? 'black' : 'white',
-                lineWidth: currentTool === 'eraser' ? BASE_LINE_WIDTH * ERASER_WIDTH_MULTIPLIER : BASE_LINE_WIDTH
-            };
-             lastTouchPagePos = { pageX: touch.pageX, pageY: touch.pageY }; // Update for preview start
-        }
-
-        function draw(touch) {
-            if (!isDrawing || !currentPath || isPanningOrZooming) return;
-            const largePos = pageToLargeCanvas(touch);
-            currentPath.points.push(largePos);
-            lastTouchPagePos = { pageX: touch.pageX, pageY: touch.pageY }; // *** 更新橡皮擦預覽位置 ***
-            requestAnimationFrame(redrawCurrentCanvas);
-        }
-
-        function stopDrawing() {
-            if (!isDrawing || isPanningOrZooming) return;
-
-            const state = canvasesState[currentCanvasIndex];
-            if (currentPath && currentPath.points.length > 0) { // Allow single point paths
-                state.paths.push(currentPath);
-                // console.log("Path saved, point count:", currentPath.points.length);
-            } else {
-                // console.log("Empty path discarded");
-                 // Attempt to remove the history state saved for this empty path
-                 if (state.history.length > 0) {
-                     // A simple pop might be wrong if other actions happened
-                     // For simplicity, we might leave the empty state save in history
-                     // Or compare the last history entry with the one before it
-                 }
-            }
-
-            isDrawing = false;
-            currentPath = null;
-            lastTouchPagePos = null; // *** 清除橡皮擦預覽位置 ***
-            redrawCurrentCanvas(); // Ensure final state is drawn
-            updateUndoButtonState(); // Update button after potential history change
-        }
-
-        // --- 觸摸事件處理 ---
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            const touches = e.changedTouches;
-            for (let i = 0; i < touches.length; i++) {
-                const touch = touches[i];
-                activeTouches[touch.identifier] = { pageX: touch.pageX, pageY: touch.pageY };
-            }
-            const touchCount = Object.keys(activeTouches).length;
-
-            if (touchCount === 1 && !isDrawing && !isPanningOrZooming) {
-                // Delay starting drawing until touchmove
-            } else if (touchCount === 2) {
-                isDrawing = false;
-                currentPath = null;
-                lastTouchPagePos = null; // Clear preview if switching to zoom/pan
-                isPanningOrZooming = true;
-                const touchList = Object.values(activeTouches);
-                initialPinchDistance = getDistance(touchList[0], touchList[1]);
-                initialPinchMidpoint = getMidpoint(touchList[0], touchList[1]);
-                lastPanMidpoint = initialPinchMidpoint;
-                pinchStartScale = canvasesState[currentCanvasIndex].view.scale;
-            }
-        });
-
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const touches = e.changedTouches;
-            let hasActiveTouchMoved = false;
-            let currentTouch = null; // Store the touch being processed
-
-            for (let i = 0; i < touches.length; i++) {
-                const touch = touches[i];
-                if (activeTouches[touch.identifier]) {
-                    activeTouches[touch.identifier] = { pageX: touch.pageX, pageY: touch.pageY };
-                    currentTouch = touch; // Store reference to the moving touch
-                    hasActiveTouchMoved = true;
-                }
-            }
-
-            if (!hasActiveTouchMoved || !currentTouch) return; // Exit if no active touch moved
-
-            const touchCount = Object.keys(activeTouches).length;
-
-            if (touchCount === 1) {
-                // Use the actual moving touch data
-                 const touchData = activeTouches[currentTouch.identifier];
-                 if (!isDrawing && !isPanningOrZooming) {
-                    startDrawing(touchData);
-                 }
-                 if (isDrawing) {
-                    draw(touchData);
-                 }
-            } else if (touchCount === 2 && isPanningOrZooming) {
-                handlePanAndZoom();
-            }
-        });
-
-        canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            const touches = e.changedTouches;
-            let wasDrawing = false; // Flag if the ended touch was drawing
-
-            for (let i = 0; i < touches.length; i++) {
-                const touch = touches[i];
-                const touchId = touch.identifier;
-                if (isDrawing && activeTouches[touchId]) {
-                     wasDrawing = true; // Mark that drawing should stop
-                }
-                delete activeTouches[touchId];
-            }
-
-            // Stop drawing if the ended touch was the drawing one
-            if (wasDrawing) {
-                stopDrawing();
-            }
-
-            const touchCount = Object.keys(activeTouches).length;
-
-            if (touchCount < 2) {
-                if (isPanningOrZooming) {
-                    isPanningOrZooming = false;
-                    initialPinchDistance = null;
-                    initialPinchMidpoint = null;
-                    lastPanMidpoint = null;
-                    pinchStartScale = null;
-                }
-            }
-            if (touchCount === 0) {
-                 isDrawing = false; // Ensure drawing stops if all fingers lift
-                 currentPath = null;
-                 lastTouchPagePos = null; // Clear preview if all fingers lift
-            }
-        });
-
-         canvas.addEventListener('touchcancel', (e) => {
-            e.preventDefault();
-            activeTouches = {};
-            isDrawing = false;
-            isPanningOrZooming = false;
-            currentPath = null;
-            initialPinchDistance = null;
-            initialPinchMidpoint = null;
-            lastPanMidpoint = null;
-            pinchStartScale = null;
-            lastTouchPagePos = null; // Clear preview
-            redrawCurrentCanvas();
-            updateUndoButtonState();
-        });
-
-
-        // --- 平移與縮放 (基本同 V2) ---
-        function getDistance(p1, p2) { /* ... */ return Math.hypot(p1.pageX - p2.pageX, p1.pageY - p2.pageY); } // Use hypot for clarity
-        function getMidpoint(p1, p2) { /* ... */ return { pageX: (p1.pageX + p2.pageX) / 2, pageY: (p1.pageY + p2.pageY) / 2 }; }
-
-        function handlePanAndZoom() {
-            const view = canvasesState[currentCanvasIndex].view;
-            const touches = Object.values(activeTouches);
-            if (touches.length !== 2 || !lastPanMidpoint || pinchStartScale === null || initialPinchDistance === null || !initialPinchMidpoint) return; // Added check for initialMidpoint
-
-            const currentMidpoint = getMidpoint(touches[0], touches[1]);
-            const currentDistance = getDistance(touches[0], touches[1]);
-
-            // --- Scale ---
-            let scaleFactor = 1.0;
-            if (initialPinchDistance > 0) {
-                scaleFactor = currentDistance / initialPinchDistance;
-            }
-            let targetScale = pinchStartScale * scaleFactor;
-            const newScale = Math.max(minInnerScale, Math.min(maxInnerScale, targetScale));
-
-            // --- Pan & Zoom Translation Adjustment ---
-            const initialMidpointLarge = pageToLargeCanvas(initialPinchMidpoint);
-
-            // Calculate how much the large canvas center needs to move
-            // based on finger panning delta and zoom adjustment around the initial pinch point.
-
-            // 1. Calculate pan delta in large canvas units (relative to last midpoint)
-            const panDeltaX = (currentMidpoint.pageX - lastPanMidpoint.pageX); // CSS pixels
-            const panDeltaY = (currentMidpoint.pageY - lastPanMidpoint.pageY); // CSS pixels
-            const panDeltaLargeX = -panDeltaX * dpr / view.scale; // Use current scale for delta conversion
-            const panDeltaLargeY = -panDeltaY * dpr / view.scale;
-
-            // 2. Calculate where the initial pinch point *would* be relative to the *new* center if only panning occurred
-            const projectedCenterX = view.centerX + panDeltaLargeX;
-            const projectedCenterY = view.centerY + panDeltaLargeY;
-
-            // 3. Adjust the center based on scale change around the initial pinch point
-            view.centerX = initialMidpointLarge.x - (initialMidpointLarge.x - projectedCenterX) * view.scale / newScale;
-            view.centerY = initialMidpointLarge.y - (initialMidpointLarge.y - projectedCenterY) * view.scale / newScale;
-
-            // 4. Apply the new scale
-            view.scale = newScale;
-
-            // Update last pan midpoint for next movement delta calculation
-            lastPanMidpoint = currentMidpoint;
-
-            requestAnimationFrame(redrawCurrentCanvas);
-        }
-
-        // --- 畫布重繪 ---
-        function redrawCurrentCanvas() {
-            const state = canvasesState[currentCanvasIndex];
-            const view = state.view;
-            const paths = state.paths;
-
-            ctx.save(); // 1. Save initial state
-
-            // 2. Clear canvas (physical pixels)
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 3. Set final transform matrix (combining DPR, pan, zoom)
-            // Center of large canvas (view.centerX, view.centerY) should map to center of screen (canvas.width/2, canvas.height/2)
-            // Point (LX, LY) maps to CX, CY where:
-            // CX = canvas.width/2 + (LX - view.centerX) * view.scale
-            // CY = canvas.height/2 + (LY - view.centerY) * view.scale
-            // Matrix: scaleX=view.scale, skewX=0, skewY=0, scaleY=view.scale, transX=?, transY=?
-            // transX = canvas.width/2 - view.centerX * view.scale
-            // transY = canvas.height/2 - view.centerY * view.scale
-            ctx.setTransform(
-                view.scale, 0, 0, view.scale,
-                canvas.width / 2 - view.centerX * view.scale,
-                canvas.height / 2 - view.centerY * view.scale
-            );
-
-            // --- Draw Paths ---
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            paths.forEach(pathData => {
-                // Optimization: Check if path bounding box intersects viewport before drawing
-                // (Skipped for simplicity here)
-                drawSinglePathOnLargeCanvas(pathData.points, pathData.color, pathData.lineWidth);
-            });
-            if (isDrawing && currentPath && currentPath.points.length > 0) {
-                drawSinglePathOnLargeCanvas(currentPath.points, currentPath.color, currentPath.lineWidth);
-            }
-            // --- End Draw Paths ---
-
-            ctx.restore(); // 4. Restore initial state (before drawing eraser preview)
-
-            // *** 5. Draw Eraser Preview (on top, no transform) ***
-            if (isDrawing && currentTool === 'eraser' && lastTouchPagePos) {
-                drawEraserPreview(lastTouchPagePos);
-            }
-        }
-
-        // Draw single path (coordinates are large canvas coords)
-        function drawSinglePathOnLargeCanvas(points, color, visualLineWidth) {
-            if (!points || points.length < 1) return;
-            const view = canvasesState[currentCanvasIndex].view;
-            const contextLineWidth = visualLineWidth * dpr / view.scale; // Context line width depends on zoom
-
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = contextLineWidth;
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i = 1; i < points.length; i++) {
-                ctx.lineTo(points[i].x, points[i].y);
-            }
-            if (points.length === 1) { // Draw dot for single point path
-                const radius = Math.max(contextLineWidth / 2, 0.5 * dpr / view.scale); // Ensure min radius
-                ctx.fillStyle = color;
-                ctx.arc(points[0].x, points[0].y, radius, 0, Math.PI * 2);
-                ctx.fill();
-            } else {
-                ctx.stroke();
-            }
-        }
-
-        // *** Draw Eraser Preview Function ***
-        function drawEraserPreview(pagePos) {
-            const cssX = pagePos.pageX - canvasOffset.left;
-            const cssY = pagePos.pageY - canvasOffset.top;
-            const contextX = cssX * dpr;
-            const contextY = cssY * dpr;
-            // 修改这里，去掉/2使预览圆圈与实际橡皮擦大小一致
-            const visualRadius = (BASE_LINE_WIDTH * ERASER_WIDTH_MULTIPLIER); // 去掉 /2
-            const contextRadius = visualRadius * dpr;
+        // DOM加载完成时执行特定操作
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM内容加载完成，设置直接事件");
             
+            // 直接添加按钮触摸事件
+            document.body.addEventListener('touchend', function(e) {
+                const target = e.target;
+                console.log("触摸结束事件目标:", target.id);
+                
+                if (target.id === 'text-edit-confirm-btn') {
+                    console.log("直接触发确认按钮");
+                    e.preventDefault();
+                    e.stopPropagation();
+                    confirmTextEditWithLogging();
+                    return false;
+                }
+                
+                if (target.id === 'text-edit-cancel-btn') {
+                    console.log("直接触发取消按钮");
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cancelTextEditWithLogging();
+                    return false;
+                }
+            }, true); // 使用捕获模式
+        });
+        
+        // 声明一些全局变量，确保全局函数可以访问
+        let currentTab = 0;
+        let currentText = '';
+        let textScale = 1.0;
+        let textX = 0;
+        let textY = 0;
+        let isTextMode = false;
+        
+        // 添加全局函数定义，确保内联onclick可以调用
+        function confirmTextEdit() {
+            console.log("确认文本编辑被调用");
+            try {
+                if (!currentText) {
+                    console.log("没有文本内容，无法确认");
+                    return;
+                }
+                
+                // 创建文本操作对象
+                const textPoint = transformPoint(textX, textY);
+                
+                const textOperation = {
+                    type: 'text',
+                    text: currentText,
+                    position: textPoint,
+                    scale: textScale,
+                    color: '#333333'
+                };
+                
+                // 保存操作
+                saveState(currentTab, textOperation);
+                
+                // 清理状态
+                endTextEditing();
+                
+                // 重绘画布
+                redrawCanvas(currentTab);
+                console.log("文本已成功添加并绘制到画布");
+            } catch (error) {
+                console.error("确认文本编辑时出错:", error);
+            }
+        }
+        
+        function cancelTextEdit() {
+            console.log("取消文本编辑被调用");
+            try {
+                // 清理状态而不保存
+                endTextEditing();
+                console.log("文本编辑已取消");
+            } catch (error) {
+                console.error("取消文本编辑时出错:", error);
+            }
+        }
+        
+        // Canvas setup and state management
+        const canvasContainer = document.querySelector('.canvas-container');
+        const canvas1 = document.getElementById('canvas1');
+        const canvas2 = document.getElementById('canvas2');
+        const canvas3 = document.getElementById('canvas3');
+        const eraserCursor = document.getElementById('eraser-cursor');
+        const scaleDisplay = document.getElementById('scale-display');
+        
+        const canvases = [canvas1, canvas2, canvas3];
+        const contexts = [];
+        const states = [[], [], []]; // Array of operation objects for each canvas
+        const redoStates = [[], [], []]; // Array of undone operation objects
+        
+        let currentTool = 'pen';
+        let currentShape = 'rect';
+        let isDrawing = false;
+        let currentOperation = null; // 当前正在进行的操作
+        let startX = 0;
+        let startY = 0;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // 文本相关变量
+        let isMovingText = false;
+        let textTouchStartTime = 0;
+        let textLongPressTimeout = null;
+        
+        // Transform state
+        let scale = 1.0;
+        let offsetX = 0;
+        let offsetY = 0;
+        let startDistance = 0;
+        let initialScale = 1.0;
+        let initialOffsetX = 0;
+        let initialOffsetY = 0;
+        
+        // 线条属性
+        const LINE_WIDTH = 2; // 默认线条宽度
+        const LINE_COLOR = '#333333'; // 默认线条颜色
+        const ERASER_SIZE = 100; // 橡皮擦直径
+        
+        // 触摸状态
+        let isPanning = false;
+        let isZooming = false;
+        let lastPanPoint = { x: 0, y: 0 };
+        
+        // Initialize canvases
+        function initCanvases() {
+            for (let i = 0; i < canvases.length; i++) {
+                const canvas = canvases[i];
+                
+                // Make only the first canvas visible initially
+                canvas.style.display = i === 0 ? 'block' : 'none';
+                
+                // Set canvas size to match container
+                resizeCanvas(canvas);
+                
+                // Initialize context
+                const ctx = canvas.getContext('2d', { willReadFrequently: true }); // willReadFrequently may improve performance slightly with frequent redraws
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                // Store context in array for later use
+                contexts[i] = ctx;
+            }
+            
+            // 添加窗口大小变化监听
+            window.addEventListener('resize', function() {
+                for (let i = 0; i < canvases.length; i++) {
+                    resizeCanvas(canvases[i]);
+                }
+                redrawCanvas(currentTab);
+            });
+        }
+        
+        function resizeCanvas(canvas) {
+            // 使用窗口宽高而不是容器宽高，确保覆盖整个窗口
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // Redraw after resize
+            redrawCanvas(currentTab);
+        }
+        
+        // 将变换应用于坐标
+        function transformPoint(x, y) {
+            return {
+                x: (x - offsetX) / scale,
+                y: (y - offsetY) / scale
+            };
+        }
+        
+        // 将画布转换回屏幕坐标
+        function inverseTransformPoint(x, y) {
+            return {
+                x: x * scale + offsetX,
+                y: y * scale + offsetY
+            };
+        }
+        
+        // 核心重绘函数：根据操作列表和当前变换重绘画布
+        function redrawCanvas(tabIndex) {
+            const ctx = contexts[tabIndex];
+            const canvas = canvases[tabIndex];
+            if (!ctx || !canvas) return;
+            
+            // 1. 清空画布 (使用屏幕坐标系)
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.beginPath();
-            ctx.fillStyle = ERASER_PREVIEW_COLOR;
-            ctx.arc(contextX, contextY, contextRadius, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.restore();
+            
+            // 2. 应用当前全局变换 (平移和缩放)
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, scale);
+            
+            // 3. 遍历并绘制所有已保存的操作
+            const operations = states[tabIndex];
+            operations.forEach(op => drawOperation(ctx, op));
+            
+            // 4. 恢复变换状态
+            ctx.restore();
+            
+            console.log(`Redrew canvas ${tabIndex} with ${operations.length} operations`);
         }
-
-        // --- 工具切換 ---
-        penBtn.addEventListener('click', () => switchTool('pen'));
-        eraserBtn.addEventListener('click', () => switchTool('eraser'));
-        function switchTool(tool) {
-            currentTool = tool;
-            updateToolbar();
-        }
-
-        // --- 撤銷操作按鈕 ---
-        undoBtn.addEventListener('click', () => {
-            if (!undoBtn.disabled) {
-                undo();
-            }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvases.forEach(resizeCanvas); // resizeCanvas now calls redrawCanvas
         });
-
-        // --- 清除畫布 ---
-        clearBtn.addEventListener('click', () => {
-            const state = canvasesState[currentCanvasIndex];
-            if (state.paths.length > 0) {
-                 if (confirm('確定要清除當前畫板的所有內容嗎？')) {
-                    saveHistory(); // Save before clearing
-                    state.paths = [];
-                    redrawCurrentCanvas();
-                    updateUndoButtonState();
-                }
-            }
-        });
-
-        // --- 撤銷操作 ---
-        function saveHistory() {
-            const state = canvasesState[currentCanvasIndex];
-            try {
-                // 使用结构化克隆进行深拷贝，比JSON序列化更高效且保留对象特性
-                const pathsCopy = [];
-                
-                // 优化点坐标存储，使用Float32Array提高性能
-                for (const path of state.paths) {
-                    const pointsCopy = [];
-                    for (const point of path.points) {
-                        pointsCopy.push({x: point.x, y: point.y});
-                    }
-                    
-                    pathsCopy.push({
-                        points: pointsCopy,
-                        color: path.color,
-                        lineWidth: path.lineWidth
-                    });
-                }
-                
-                // 计算当前状态的更精确哈希值，避免存储重复状态
-                // 使用路径数量、颜色和线宽的组合作为哈希值
-                let pathsSignature = '';
-                if (pathsCopy.length > 0) {
-                    // 取样前三条路径的特征作为签名
-                    const sampleSize = Math.min(3, pathsCopy.length);
-                    for (let i = 0; i < sampleSize; i++) {
-                        const path = pathsCopy[pathsCopy.length - 1 - i]; // 从最新的路径开始
-                        const pointCount = path.points.length;
-                        // 使用路径的颜色、线宽和点数量作为特征
-                        pathsSignature += `${path.color}-${path.lineWidth}-${pointCount};`;
-                    }
-                }
-                const currentStateHash = `${pathsCopy.length}-${pathsSignature}`;
-                
-                if (state.debug) {
-                    console.log(`[UNDO LOG] Attempting to save history. Current paths count: ${state.paths.length}. History length before save: ${state.history.length}`);
-                }
-
-                // 检查是否需要保存历史（避免重复状态）
-                const lastHistoryItem = state.history.length > 0 ? state.history[state.history.length - 1] : null;
-                const shouldSave = !lastHistoryItem || 
-                                  lastHistoryItem.hash !== currentStateHash || 
-                                  lastHistoryItem.pathsCount !== pathsCopy.length;
-                
-                if (shouldSave) {
-                    // 存储状态和哈希值
-                    state.history.push({
-                        paths: pathsCopy,
-                        hash: currentStateHash,
-                        pathsCount: pathsCopy.length,
-                        timestamp: Date.now() // 添加时间戳便于调试
-                    });
-                    
-                    // 限制历史记录长度
-                    while (state.history.length > MAX_UNDO_STEPS) {
-                        state.history.shift();
-                    }
-                    if (state.debug) {
-                        console.log(`[UNDO LOG] History saved. New length: ${state.history.length}. Paths count: ${pathsCopy.length}`);
-                    }
-                } else {
-                    if (state.debug) {
-                        console.log("[UNDO LOG] History save skipped (state unchanged).");
-                    }
-                }
-            } catch (error) {
-                console.error("[UNDO LOG] Failed to save history:", error);
-            }
-            updateUndoButtonState();
-        }
-
-        function undo() {
-            const state = canvasesState[currentCanvasIndex];
-            if (state.debug) {
-                console.log(`[UNDO LOG] Undo called. History length: ${state.history.length}`);
+        
+        // Save and restore canvas state (操作对象)
+        function saveState(tabIndex, operation) {
+            if (!operation) return;
+            if (states[tabIndex].length >= 20) {
+                states[tabIndex].shift(); // Remove oldest state if we have 20
             }
             
-            if (state.history.length > 0) {
-                const previousState = state.history.pop();
-                try {
-                    // 直接使用存储的路径数组，无需解析JSON
-                    if (Array.isArray(previousState.paths)) {
-                        state.paths = previousState.paths;
-                        if (state.debug) {
-                            console.log(`[UNDO LOG] Undo successful. Restored paths count: ${state.paths.length}. History length after pop: ${state.history.length}`);
-                        }
-                        redrawCurrentCanvas();
+            states[tabIndex].push(operation);
+            
+            // Clear redo stack when a new action is performed
+            redoStates[tabIndex] = [];
+            
+            // Update UI or trigger redraw if needed
+            // redrawCanvas(tabIndex); // Usually called after endDrawing completes the operation
+        }
+        
+        function restoreState(tabIndex) {
+            if (states[tabIndex].length === 0) return; // Nothing to undo
+            
+            // Move last operation to redo stack
+            const undoneOperation = states[tabIndex].pop();
+            redoStates[tabIndex].push(undoneOperation);
+            
+            // Redraw the canvas with the remaining operations
+            redrawCanvas(tabIndex);
+        }
+        
+        function clearCanvas(tabIndex) {
+            // Clear operations for the current canvas
+            states[tabIndex] = [];
+            redoStates[tabIndex] = [];
+            
+            // Redraw the now empty canvas
+            redrawCanvas(tabIndex);
+        }
+        
+        // Drawing functions
+        function startDrawing(e) {
+            if (e.touches && e.touches.length > 1) return;
+            
+            isDrawing = true;
+            isPanning = false; // Ensure not panning when drawing starts
+            isZooming = false;
+            
+            // 直接使用客户端坐标，而不是相对于canvas-container的坐标
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            if (clientX === undefined || clientY === undefined) return;
+            
+            // 转换为画布坐标
+            const point = transformPoint(clientX, clientY);
+            startX = point.x;
+            startY = point.y;
+            lastX = point.x;
+            lastY = point.y;
+            
+            // 创建新的操作对象
+            currentOperation = {
+                type: currentTool === 'shape' ? currentShape : currentTool, // Use specific shape type if tool is shape
+                points: [point], // Start points array for pen/eraser
+                startPoint: point, // Start point for shapes
+                endPoint: point, // Initialize end point for shapes
+                lineWidth: currentTool === 'eraser' ? ERASER_SIZE : LINE_WIDTH,
+                color: LINE_COLOR
+            };
+            
+            if (currentTool === 'eraser') {
+                // 显示橡皮擦光标
+                eraserCursor.style.display = 'block';
+                eraserCursor.style.width = `${ERASER_SIZE}px`;
+                eraserCursor.style.height = `${ERASER_SIZE}px`;
+                eraserCursor.style.left = `${clientX - ERASER_SIZE / 2}px`;
+                eraserCursor.style.top = `${clientY - ERASER_SIZE / 2}px`;
+            }
+        }
+        
+        function draw(e) {
+            if (!isDrawing || !currentOperation) return;
+            
+            // 直接使用客户端坐标
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            if (clientX === undefined || clientY === undefined) return;
+            
+            // 转换为画布坐标
+            const point = transformPoint(clientX, clientY);
+            
+            if (currentOperation.type === 'pen' || currentOperation.type === 'eraser') {
+                currentOperation.points.push(point);
+            } else if (['rect', 'circle', 'line'].includes(currentOperation.type)) {
+                currentOperation.endPoint = point; // Update endpoint for shapes
+            }
+            
+            // 预览绘制：重绘所有已保存的操作，然后绘制当前操作
+            drawPreview();
+            
+            if (currentTool === 'eraser') {
+                // 直接更新擦除器光标位置
+                eraserCursor.style.left = `${clientX - ERASER_SIZE / 2}px`;
+                eraserCursor.style.top = `${clientY - ERASER_SIZE / 2}px`;
+            }
+            
+            lastX = point.x; // Update last point for potential pen continuation
+            lastY = point.y;
+        }
+        
+        // 绘制预览（重绘所有 + 当前操作）
+        function drawPreview() {
+            const ctx = contexts[currentTab];
+            const canvas = canvases[currentTab];
+            if (!ctx || !canvas) return;
+            
+            // 1. 清空画布
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            
+            // 2. 应用全局变换
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, scale);
+            
+            // 3. 绘制所有已保存的操作
+            const operations = states[currentTab];
+            operations.forEach(op => drawOperation(ctx, op)); // Use helper
+            
+            // 4. 绘制当前正在进行的操作 (currentOperation)
+            if (currentOperation) {
+                drawOperation(ctx, currentOperation);
+            }
+            
+            // 5. 恢复变换
+            ctx.restore();
+        }
+        
+        // Helper function to draw a single operation
+        function drawOperation(ctx, op) {
+            if (!op) return;
+            
+            // 橡皮擦特殊处理
+            if (op.type === 'eraser') {
+                ctx.save(); // 保存当前上下文状态
+                
+                // 设置橡皮擦专用样式
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                // 计算橡皮擦实际宽度并确保最小宽度
+                const eraserWidth = ERASER_SIZE / scale;
+                ctx.lineWidth = Math.max(eraserWidth, 1); // 确保最小宽度为1像素
+                
+                if (op.points && op.points.length > 0) {
+                    ctx.beginPath();
+                    
+                    if (op.points.length === 1) {
+                        // 单点擦除 - 绘制一个填充圆形
+                        const point = op.points[0];
+                        const radius = ctx.lineWidth / 2; // 使用线宽的一半作为半径
+                        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+                        ctx.fill(); // 使用填充而不是描边
                     } else {
-                        throw new Error('Invalid paths data in history');
-                    }
-                } catch (error) {
-                    console.error("[UNDO LOG] Failed to restore history state:", error);
-                    // 尝试恢复到上一个有效状态，而不是直接清空
-                    if (state.history.length > 0) {
-                        try {
-                            const fallbackState = state.history.pop();
-                            state.paths = fallbackState.paths;
-                            console.log("[UNDO LOG] Recovered using previous history state");
-                        } catch (fallbackError) {
-                            // 如果恢复失败，才清空所有内容
-                            state.paths = [];
-                            state.history = [];
-                            console.error("[UNDO LOG] Failed to recover, clearing all states");
+                        // 路径擦除 - 连接所有点
+                        ctx.moveTo(op.points[0].x, op.points[0].y);
+                        for (let i = 1; i < op.points.length; i++) {
+                            ctx.lineTo(op.points[i].x, op.points[i].y);
                         }
-                    } else {
-                        state.paths = []; // Fallback: clear paths if history is corrupted
+                        ctx.stroke(); // 使用描边
                     }
-                    redrawCurrentCanvas();
                 }
+                
+                ctx.restore(); // 恢复之前的上下文状态
+                return; // 提前返回，不执行后面的代码
+            }
+            
+            // 文本操作特殊处理
+            if (op.type === 'text' && op.text && op.position) {
+                ctx.save();
+                
+                // 设置文本样式
+                ctx.font = `${16 * op.scale}px Arial, sans-serif`;
+                ctx.fillStyle = op.color || '#333333';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // 绘制文本
+                ctx.fillText(op.text, op.position.x, op.position.y);
+                
+                ctx.restore();
+                return;
+            }
+            
+            // 非橡皮擦操作的处理
+            ctx.save(); // 保存状态
+            
+            // 设置绘图样式
+            ctx.globalCompositeOperation = 'source-over'; // 确保使用默认模式
+            ctx.strokeStyle = op.color || LINE_COLOR;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            // 计算实际线宽
+            const actualLineWidth = (op.lineWidth || LINE_WIDTH) / scale;
+            ctx.lineWidth = Math.max(actualLineWidth, 0.5); // 确保最小线宽
+            
+            // 根据操作类型绘制
+            if (op.type === 'pen' && op.points && op.points.length > 0) {
+                ctx.beginPath();
+                
+                if (op.points.length === 1) {
+                    // 单点触摸 - 绘制一个小圆点
+                    const point = op.points[0];
+                    ctx.fillStyle = ctx.strokeStyle; // 使用线条颜色作为填充色
+                    const radius = ctx.lineWidth / 2;
+                    ctx.arc(point.x, point.y, Math.max(radius, 0.5), 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // 连续线条
+                    ctx.moveTo(op.points[0].x, op.points[0].y);
+                    for (let i = 1; i < op.points.length; i++) {
+                        ctx.lineTo(op.points[i].x, op.points[i].y);
+                    }
+                    ctx.stroke();
+                }
+            } else if (op.type === 'line' && op.startPoint && op.endPoint) {
+                ctx.beginPath();
+                ctx.moveTo(op.startPoint.x, op.startPoint.y);
+                ctx.lineTo(op.endPoint.x, op.endPoint.y);
+                ctx.stroke();
+            } else if (op.type === 'rect' && op.startPoint && op.endPoint) {
+                ctx.beginPath();
+                ctx.rect(
+                    op.startPoint.x,
+                    op.startPoint.y,
+                    op.endPoint.x - op.startPoint.x,
+                    op.endPoint.y - op.startPoint.y
+                );
+                ctx.stroke();
+            } else if (op.type === 'circle' && op.startPoint && op.endPoint) {
+                const radius = Math.sqrt(
+                    Math.pow(op.endPoint.x - op.startPoint.x, 2) +
+                    Math.pow(op.endPoint.y - op.startPoint.y, 2)
+                );
+                if (radius > 0) {
+                    ctx.beginPath();
+                    ctx.arc(op.startPoint.x, op.startPoint.y, radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+            
+            ctx.restore(); // 恢复上下文状态
+        }
+        
+        function endDrawing() {
+            if (!isDrawing || !currentOperation) return;
+            isDrawing = false;
+            
+            // Finalize the operation (e.g., filter points if needed)
+            if (currentOperation.type === 'pen') {
+                if (currentOperation.points.length < 2) {
+                    currentOperation = null; // Ignore single point clicks for pen
+                }
+                // Optional: Add point filtering/smoothing here
+            } else if (currentOperation.type === 'eraser') {
+                // 确保橡皮擦操作即使只有一个点也能保存
+                // 不执行过滤操作
+            } else if (['rect', 'circle', 'line'].includes(currentOperation.type)) {
+                // Ensure start and end points are different for shapes/lines
+                if (currentOperation.startPoint.x === currentOperation.endPoint.x &&
+                    currentOperation.startPoint.y === currentOperation.endPoint.y) {
+                    currentOperation = null;
+                }
+            }
+            
+            // Save the completed operation
+            if (currentOperation) {
+                saveState(currentTab, currentOperation);
+            }
+            
+            // Reset current operation
+            currentOperation = null;
+            
+            // Perform a final redraw using the main redraw function
+            redrawCanvas(currentTab);
+        }
+        
+        // Handle touch gestures for zoom and pan
+        function handleTouchStart(e) {
+            e.preventDefault(); // 阻止默认行为
+            
+            // 检查是否点击了文本编辑按钮
+            if (isTextMode) {
+                // 检查触摸点是否在文本编辑按钮区域内
+                const controls = document.getElementById('text-edit-controls');
+                if (controls && controls.style.display !== 'none') {
+                    const controlsRect = controls.getBoundingClientRect();
+                    const touch = e.touches[0];
+                    
+                    if (touch.clientY >= controlsRect.top && 
+                        touch.clientY <= controlsRect.bottom &&
+                        touch.clientX >= controlsRect.left && 
+                        touch.clientX <= controlsRect.right) {
+                        console.log("触摸位于文本编辑控件区域，不进行画布操作");
+                        return; // 让按钮自己处理触摸事件
+                    }
+                }
+                
+                // 文本模式下的其他触摸处理
+                if (e.touches.length === 1) {
+                    startTextMove(e);
+                } else if (e.touches.length === 2) {
+                    // 重置缩放起始距离，准备双指缩放文本
+                    startDistance = null;
+                    initialScale = textScale;
+                }
+                return;
+            }
+            
+            if (e.touches.length >= 2) {
+                // 双指或多指手势 - 准备缩放和平移
+                isZooming = true;
+                isPanning = true;
+                isDrawing = false; // 停止任何可能的绘图
+                currentOperation = null; // 清除未完成的操作
+                
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                // 计算初始双指距离 (用于缩放)
+                startDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                // 记录初始变换状态
+                initialScale = scale;
+                initialOffsetX = offsetX;
+                initialOffsetY = offsetY;
+                
+                // 记录初始双指中点 (用于平移)
+                lastPanPoint = {
+                    x: (touch1.clientX + touch2.clientX) / 2,
+                    y: (touch1.clientY + touch2.clientY) / 2
+                };
+                
+            } else if (e.touches.length === 1 && !isDrawing) {
+                // 单指触摸开始 - 并且当前不在绘图状态
+                // (防止在双指缩放结束但一指未抬起时触发绘图)
+                startDrawing(e);
+            }
+        }
+        
+        function handleTouchMove(e) {
+            e.preventDefault(); // 阻止默认行为
+            
+            // 文本模式特殊处理
+            if (isTextMode) {
+                if (e.touches.length === 1) {
+                    moveText(e);
+                } else if (e.touches.length === 2) {
+                    handleTextPinch(e);
+                }
+                return;
+            }
+            
+            if (isZooming && isPanning && e.touches.length >= 2) {
+                // 处理双指缩放和平移
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                // --- 缩放处理 ---
+                const currentDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                // 计算新的缩放比例
+                let newScale = initialScale * (currentDistance / startDistance);
+                newScale = Math.max(0.1, Math.min(10, newScale)); // 限制缩放范围 (10% - 1000%)
+                
+                // --- 平移处理 ---
+                const currentMidPoint = {
+                    x: (touch1.clientX + touch2.clientX) / 2,
+                    y: (touch1.clientY + touch2.clientY) / 2
+                };
+                
+                // 正确的平移计算：需要考虑缩放中心点
+                // 将屏幕中点转换为画布坐标 (变换前)
+                const pinchPointScreen = { x: currentMidPoint.x, y: currentMidPoint.y };
+                const pinchPointCanvasBefore = transformPoint(pinchPointScreen.x, pinchPointScreen.y);
+
+                // 更新 scale - 在计算变换后的点之前更新
+                scale = newScale;
+
+                // 将之前的画布坐标点转换回缩放后的屏幕坐标
+                const pinchPointScreenAfter = inverseTransformPoint(pinchPointCanvasBefore.x, pinchPointCanvasBefore.y);
+
+                // 计算由缩放引起的中点屏幕坐标偏移量
+                const zoomOffsetX = pinchPointScreen.x - pinchPointScreenAfter.x;
+                const zoomOffsetY = pinchPointScreen.y - pinchPointScreenAfter.y;
+                
+                // 计算手指实际平移量（相对于上一个点）
+                const panDeltaX = currentMidPoint.x - lastPanPoint.x;
+                const panDeltaY = currentMidPoint.y - lastPanPoint.y;
+
+                // 更新全局 offsetX 和 offsetY
+                // 应用手指的平移量，并校正因缩放中心点变化引起的偏移
+                offsetX += panDeltaX + zoomOffsetX;
+                offsetY += panDeltaY + zoomOffsetY;
+
+                // 更新上次平移点，用于下一次计算 delta
+                lastPanPoint = currentMidPoint;
+                
+                // 更新缩放显示
+                scaleDisplay.textContent = `${Math.round(scale * 100)}%`;
+                
+                // 重绘当前画布以应用新的变换
+                redrawCanvas(currentTab);
+                
+            } else if (isDrawing && e.touches.length === 1) {
+                // 单指移动 - 绘图或橡皮擦
+                draw(e);
+            }
+        }
+        
+        function handleTouchEnd(e) {
+            // 文本模式特殊处理
+            if (isTextMode) {
+                endTextMove(e);
+                // 重置缩放起始距离
+                startDistance = null;
+                return;
+            }
+            
+            if (e.touches.length < 2) {
+                // 如果少于2个触摸点，则停止缩放和平移状态
+                isZooming = false;
+                isPanning = false;
+                // 重置平移起始点，以防下次单指触摸开始平移
+                lastPanPoint = { x: 0, y: 0 }; 
+            }
+            
+            if (e.touches.length === 0) {
+                // 所有手指离开屏幕
+                if (isDrawing) {
+                    endDrawing();
+                }
+                
+                // 如果工具不是橡皮擦，隐藏橡皮擦光标
+                if (currentTool !== 'eraser') {
+                    eraserCursor.style.display = 'none';
+                }
+            }
+        }
+        
+        // UI Interaction
+        function setupEventListeners() {
+            // Tab switching
+            document.querySelectorAll('.tab').forEach((tab, index) => {
+                if (index < 3) { // 只为三个画板设置点击事件
+                    tab.addEventListener('click', () => {
+                        switchTab(index);
+                    });
+                }
+            });
+            
+            // 使用说明按钮
+            document.getElementById('instruction-btn').addEventListener('click', () => {
+                document.getElementById('instruction-overlay').style.display = 'block';
+            });
+            
+            document.getElementById('instruction-close').addEventListener('click', () => {
+                document.getElementById('instruction-overlay').style.display = 'none';
+            });
+            
+            // Tool selection
+            document.querySelectorAll('.tool').forEach(tool => {
+                tool.addEventListener('click', () => {
+                    const toolName = tool.getAttribute('data-tool');
+                    handleToolClick(toolName);
+                });
+            });
+            
+            // Shape selection
+            document.querySelectorAll('#shape-popup .popup-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const shapeType = item.getAttribute('data-shape');
+                    currentShape = shapeType;
+                    document.getElementById('shape-popup').classList.remove('active');
+                });
+            });
+            
+            // More options
+            document.getElementById('clear-btn').addEventListener('click', () => {
+                clearCanvas(currentTab);
+                document.getElementById('more-popup').classList.remove('active');
+            });
+            
+            document.getElementById('screenshot-btn').addEventListener('click', () => {
+                takeScreenshot();
+                document.getElementById('more-popup').classList.remove('active');
+            });
+            
+            // Reset button
+            document.getElementById('reset-btn').addEventListener('click', () => {
+                resetTransform();
+            });
+            
+            // 触摸事件
+            canvasContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvasContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvasContainer.addEventListener('touchend', handleTouchEnd);
+            
+            // 鼠标事件 (桌面调试用)
+            canvasContainer.addEventListener('mousedown', startDrawing);
+            canvasContainer.addEventListener('mousemove', draw);
+            window.addEventListener('mouseup', endDrawing);
+            
+            // 桌面版文本编辑支持
+            textDisplay.addEventListener('mousedown', startTextMove);
+            textDisplay.addEventListener('mousemove', moveText);
+            textDisplay.addEventListener('mouseup', endTextMove);
+            
+            // 初始化文本编辑按钮事件 - 直接调用
+            bindTextEditButtonEvents();
+        }
+        
+        function switchTab(tabIndex) {
+            // Update tab UI
+            document.querySelectorAll('.tab').forEach((tab, index) => {
+                if (index < 3) { // 只处理三个画板标签
+                    if (index === tabIndex) {
+                        tab.classList.add('active');
+                    } else {
+                        tab.classList.remove('active');
+                    }
+                }
+            });
+            
+            // Show selected canvas, hide others
+            canvases.forEach((canvas, index) => {
+                canvas.style.display = index === tabIndex ? 'block' : 'none';
+            });
+            
+            currentTab = tabIndex;
+            redrawCanvas(currentTab);
+        }
+        
+        function handleToolClick(toolName) {
+            // 如果当前是文本模式，需要先退出文本模式
+            if (isTextMode) {
+                cancelTextInput();
+            }
+            
+            // Handle tool selection
+            if (toolName === 'shape') {
+                document.getElementById('shape-popup').classList.toggle('active');
+                document.getElementById('more-popup').classList.remove('active');
+            } else if (toolName === 'more') {
+                document.getElementById('more-popup').classList.toggle('active');
+                document.getElementById('shape-popup').classList.remove('active');
+            } else if (toolName === 'undo') {
+                restoreState(currentTab);
+                return; // Don't update the active tool for undo
+            } else if (toolName === 'text') {
+                // 直接显示文本输入界面
+                showTextInput();
+                return; // 不更新当前工具，保持在之前的工具状态
             } else {
-                if (state.debug) {
-                    console.log("[UNDO LOG] Undo skipped (no history).");
-                }
+                // Hide all popups
+                document.getElementById('shape-popup').classList.remove('active');
+                document.getElementById('more-popup').classList.remove('active');
             }
-            updateUndoButtonState();
-        }
-
-        function updateUndoButtonState() {
-            const state = canvasesState[currentCanvasIndex];
-            undoBtn.disabled = state.history.length === 0;
-             // console.log("[UNDO LOG] Undo button state updated. Disabled:", undoBtn.disabled);
-        }
-
-
-        // --- 畫板切換 ---
-        canvasBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const index = parseInt(btn.dataset.canvas);
-                if (index >= 0 && index < 2 && index !== currentCanvasIndex) { // Check index bounds
-                    switchCanvas(index);
+            
+            // Update tool UI
+            document.querySelectorAll('.tool').forEach(tool => {
+                if (tool.getAttribute('data-tool') === toolName) {
+                    tool.classList.add('active');
+                } else {
+                    tool.classList.remove('active');
                 }
             });
-        });
-
-        function switchCanvas(index) {
-            if (index >= 0 && index < 2) { // 修改边界检查为2
-                currentCanvasIndex = index;
-                loadCanvasState(currentCanvasIndex);
-                updateToolbar();
-                redrawCurrentCanvas();
-                updateUndoButtonState();
+            
+            // Update current tool
+            currentTool = toolName;
+            
+            // 显示/隐藏橡皮擦光标
+            if (toolName === 'eraser') {
+                eraserCursor.style.display = 'block';
+            } else {
+                eraserCursor.style.display = 'none';
             }
         }
-
-        function loadCanvasState(index) {
-            // console.log(`Switched to canvas ${index}`);
+        
+        function resetTransform() {
+            // 重置变换变量
+            scale = 1.0;
+            offsetX = 0;
+            offsetY = 0;
+            
+            // 更新缩放显示
+            scaleDisplay.textContent = '100%';
+            
+            // 重绘画布以应用重置后的变换
+            redrawCanvas(currentTab);
         }
-
-        // --- 更新工具欄狀態 ---
-        function updateToolbar() {
-            penBtn.classList.toggle('active', currentTool === 'pen');
-            eraserBtn.classList.toggle('active', currentTool === 'eraser');
-            canvasBtns.forEach(btn => {
-                const btnIndex = parseInt(btn.dataset.canvas);
-                if (btnIndex < 2) { // Only update buttons for existing canvases
-                    btn.classList.toggle('active', btnIndex === currentCanvasIndex);
+        
+        function takeScreenshot() {
+            const canvas = canvases[currentTab];
+            
+            // 创建临时画布用于截图
+            const screenshotCanvas = document.createElement('canvas');
+            const screenshotCtx = screenshotCanvas.getContext('2d');
+            
+            // 设置与当前画布相同的尺寸
+            screenshotCanvas.width = canvas.width;
+            screenshotCanvas.height = canvas.height;
+            
+            // 设置白色背景，解决移动设备上可能出现的黑屏问题
+            screenshotCtx.fillStyle = 'white';
+            screenshotCtx.fillRect(0, 0, screenshotCanvas.width, screenshotCanvas.height);
+            
+            // 绘制当前内容（包含变换）
+            screenshotCtx.drawImage(canvas, 0, 0);
+            
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.download = `whiteboard-screenshot-${Date.now()}.jpg`;
+            link.href = screenshotCanvas.toDataURL('image/jpeg');
+            
+            // 触发下载
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Initialize the app
+        function init() {
+            console.log("应用初始化开始");
+            initCanvases();
+            setupEventListeners();
+            setupTextEvents(); // 文本事件初始化
+            
+            // 确保按钮事件绑定
+            setTimeout(() => {
+                bindTextEditButtonEvents();
+                console.log("初始化时的按钮事件绑定完成");
+            }, 100);
+            
+            console.log("应用初始化完成");
+        }
+        
+        // Start the app when the page loads
+        window.addEventListener('load', init);
+        
+        // 初始化文本相关元素
+        const textOverlay = document.getElementById('text-overlay');
+        const textInput = document.getElementById('text-input');
+        const textDisplay = document.getElementById('text-display');
+        const textConfirmBtn = document.getElementById('text-confirm');
+        const textCancelBtn = document.getElementById('text-cancel');
+        
+        // 文本相关函数
+        function showTextInput() {
+            // 重置文本状态
+            isTextMode = true;
+            currentText = '';
+            textScale = 1.0;
+            
+            // 计算初始位置为窗口中心
+            textX = window.innerWidth / 2;
+            textY = window.innerHeight / 2;
+            
+            // 显示输入UI
+            textOverlay.style.display = 'block';
+            textInput.value = '';
+            textInput.focus();
+            
+            // 隐藏其他弹窗
+            document.getElementById('more-popup').classList.remove('active');
+        }
+        
+        function hideTextInput() {
+            textOverlay.style.display = 'none';
+            textInput.blur();
+        }
+        
+        function updateTextDisplay() {
+            if (!currentText) return;
+            
+            // 更新文本显示
+            textDisplay.innerText = currentText;
+            textDisplay.style.display = 'block';
+            
+            // 设置位置和缩放
+            textDisplay.style.left = `${textX}px`;
+            textDisplay.style.top = `${textY}px`;
+            textDisplay.style.transform = `translate(-50%, -50%) scale(${textScale})`;
+        }
+        
+        function startEditingText() {
+            // 确保有文本内容
+            if (textInput.value.trim()) {
+                console.log("开始文本编辑，内容:", textInput.value.trim());
+                
+                // 更新当前文本
+                currentText = textInput.value.trim();
+                
+                // 更新文本显示
+                updateTextDisplay();
+                
+                // 隐藏输入框和遮罩层，允许用户操作文本
+                hideTextInput();
+                
+                // 显示编辑控件
+                const controls = document.getElementById('text-edit-controls');
+                controls.style.display = 'block';
+                
+                // 确保事件处理程序正确绑定
+                setTimeout(() => {
+                    bindTextEditButtonEvents();
+                    console.log("文本编辑模式已启用，控制按钮已显示");
+                }, 10);
+            }
+        }
+        
+        function endTextEditing() {
+            console.log("结束文本编辑");
+            // 隐藏所有文本编辑相关元素
+            textDisplay.style.display = 'none';
+            document.getElementById('text-edit-controls').style.display = 'none';
+            
+            isTextMode = false;
+            currentText = '';
+            isMovingText = false;
+            
+            // 切换回画笔工具
+            handleToolClick('pen');
+        }
+        
+        function confirmTextInput() {
+            startEditingText();
+        }
+        
+        function cancelTextInput() {
+            // 清理状态
+            hideTextInput();
+            textDisplay.style.display = 'none';
+            isTextMode = false;
+            currentText = '';
+            
+            // 切换回画笔工具
+            handleToolClick('pen');
+        }
+        
+        // 文本移动和缩放
+        function startTextMove(e) {
+            if (!isTextMode || !currentText) return;
+            
+            const touch = e.touches ? e.touches[0] : e;
+            const rect = textDisplay.getBoundingClientRect();
+            
+            // 检查触摸点是否在文本框内
+            if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                
+                // 开始长按检测
+                textTouchStartTime = Date.now();
+                clearTimeout(textLongPressTimeout); // 防止多次触发
+                textLongPressTimeout = setTimeout(() => {
+                    isMovingText = true;
+                    textDisplay.style.borderStyle = 'solid';
+                    textDisplay.style.borderColor = '#FF3B30';
+                    textDisplay.style.cursor = 'grabbing';
+                    
+                    // 添加视觉提示
+                    textDisplay.classList.add('moving');
+                }, 500); // 500ms长按阈值
+                
+                e.preventDefault(); // 阻止默认行为
+            }
+        }
+        
+        function moveText(e) {
+            if (!isTextMode || !isMovingText) return;
+            
+            const touch = e.touches ? e.touches[0] : e;
+            // 直接使用客户端坐标，而不是相对于容器的坐标
+            textX = touch.clientX;
+            textY = touch.clientY;
+            
+            updateTextDisplay();
+            e.preventDefault();
+        }
+        
+        function endTextMove(e) {
+            clearTimeout(textLongPressTimeout);
+            
+            if (isMovingText) {
+                isMovingText = false;
+                textDisplay.style.borderStyle = 'dashed';
+                textDisplay.style.borderColor = '#007AFF';
+                textDisplay.style.cursor = 'move';
+                
+                // 移除视觉提示
+                textDisplay.classList.remove('moving');
+                
+                e && e.preventDefault();
+            }
+        }
+        
+        // 文本缩放处理
+        function handleTextPinch(e) {
+            if (!isTextMode || !currentText) return;
+            
+            // 如果正在移动文本，不执行缩放
+            if (isMovingText) return;
+            
+            if (e.touches && e.touches.length === 2) {
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                // 计算当前两指距离
+                const distance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                if (!startDistance) {
+                    startDistance = distance;
+                    initialScale = textScale;
+                } else {
+                    // 计算新的缩放比例
+                    textScale = initialScale * (distance / startDistance);
+                    textScale = Math.max(0.5, Math.min(3.0, textScale)); // 限制缩放范围
+                    
+                    updateTextDisplay();
                 }
-            });
+                
+                e.preventDefault();
+            }
         }
-
-        // --- 初始說明 ---
-        closeInstructionsBtn.addEventListener('click', () => {
-            instructionsPanel.style.display = 'none';
-        });
-
-        // --- 帮助按钮点击事件 ---
-        document.getElementById('help-btn').addEventListener('click', () => {
-            instructionsPanel.style.display = 'flex';
-        });
-
-        // --- 窗口大小調整 ---
-        window.addEventListener('resize', debounce(resizeCanvas, 100));
-
-        // 防抖函數
-        function debounce(func, wait) { /* ... */ let timeout; return function executedFunction(...args) { const later = () => { clearTimeout(timeout); func(...args); }; clearTimeout(timeout); timeout = setTimeout(later, wait); }; }
-
-        // --- 啟動 ---
-        initializeCanvas();
-
+        
+        // 文本事件单独初始化
+        function setupTextEvents() {
+            // 文本输入事件
+            textInput.addEventListener('input', () => {
+                currentText = textInput.value.trim();
+                updateTextDisplay();
+            });
+            
+            // 文本输入按钮事件
+            textConfirmBtn.addEventListener('click', confirmTextInput);
+            textCancelBtn.addEventListener('click', cancelTextInput);
+            
+            // 不再需要text-btn事件，现在直接点击工具栏上的文本按钮
+        }
+        
+        // 初始化文本编辑按钮事件 - 直接调用
+        function bindTextEditButtonEvents() {
+            console.log("重新绑定文本编辑按钮事件");
+            
+            // 获取按钮元素
+            const confirmBtn = document.getElementById('text-edit-confirm-btn');
+            const cancelBtn = document.getElementById('text-edit-cancel-btn');
+            
+            if (!confirmBtn || !cancelBtn) {
+                console.error("无法找到文本编辑按钮元素!");
+                return;
+            }
+            
+            // 确保按钮样式正确
+            confirmBtn.style.background = "#007AFF";
+            confirmBtn.style.color = "white";
+            confirmBtn.style.padding = "15px 0";
+            confirmBtn.style.borderRadius = "8px";
+            confirmBtn.style.fontWeight = "bold";
+            confirmBtn.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
+            
+            cancelBtn.style.background = "#f2f2f2";
+            cancelBtn.style.color = "#333";
+            cancelBtn.style.padding = "15px 0";
+            cancelBtn.style.borderRadius = "8px";
+            cancelBtn.style.fontWeight = "bold";
+            cancelBtn.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
+            
+            // 清除可能存在的旧事件
+            confirmBtn.removeEventListener('click', handleConfirmTextClick);
+            cancelBtn.removeEventListener('click', handleCancelTextClick);
+            confirmBtn.removeEventListener('touchstart', handleConfirmTextTouchStart);
+            cancelBtn.removeEventListener('touchstart', handleCancelTextTouchStart);
+            
+            // 添加鼠标和触摸事件
+            confirmBtn.addEventListener('click', handleConfirmTextClick);
+            cancelBtn.addEventListener('click', handleCancelTextClick);
+            confirmBtn.addEventListener('touchstart', handleConfirmTextTouchStart);
+            cancelBtn.addEventListener('touchstart', handleCancelTextTouchStart);
+            
+            console.log("文本编辑按钮事件绑定完成");
+        }
+        
+        // 专用事件处理函数
+        function handleConfirmTextClick(e) {
+            console.log("确认按钮点击事件被触发");
+            e.preventDefault();
+            e.stopPropagation();
+            confirmTextEditWithLogging();
+        }
+        
+        function handleCancelTextClick(e) {
+            console.log("取消按钮点击事件被触发");
+            e.preventDefault();
+            e.stopPropagation();
+            cancelTextEditWithLogging();
+        }
+        
+        function handleConfirmTextTouchStart(e) {
+            console.log("确认按钮触摸事件被触发");
+            e.preventDefault();
+            e.stopPropagation();
+            // 添加触摸反馈
+            const btn = e.currentTarget;
+            btn.style.opacity = "0.7";
+            setTimeout(() => {
+                btn.style.opacity = "1";
+                confirmTextEditWithLogging();
+            }, 150);
+        }
+        
+        function handleCancelTextTouchStart(e) {
+            console.log("取消按钮触摸事件被触发");
+            e.preventDefault();
+            e.stopPropagation();
+            // 添加触摸反馈
+            const btn = e.currentTarget;
+            btn.style.opacity = "0.7";
+            setTimeout(() => {
+                btn.style.opacity = "1";
+                cancelTextEditWithLogging();
+            }, 150);
+        }
+        
+        // 带详细日志的操作函数
+        function confirmTextEditWithLogging() {
+            console.log("确认文本编辑操作开始执行");
+            console.log("当前文本:", currentText);
+            console.log("文本位置:", textX, textY);
+            console.log("文本缩放:", textScale);
+            
+            try {
+                if (!currentText) {
+                    console.log("没有有效文本内容，无法确认");
+                    return;
+                }
+                
+                // 创建文本操作对象
+                const textPoint = transformPoint(textX, textY);
+                console.log("转换后的文本位置:", textPoint);
+                
+                const textOperation = {
+                    type: 'text',
+                    text: currentText,
+                    position: textPoint,
+                    scale: textScale,
+                    color: '#333333'
+                };
+                
+                console.log("即将保存文本操作:", textOperation);
+                
+                // 保存操作
+                saveState(currentTab, textOperation);
+                console.log("文本操作已保存");
+                
+                // 清理状态
+                endTextEditing();
+                console.log("文本编辑状态已清理");
+                
+                // 重绘画布
+                redrawCanvas(currentTab);
+                console.log("画布已重绘完成");
+                
+            } catch (error) {
+                console.error("确认文本编辑时出错:", error);
+            }
+        }
+        
+        function cancelTextEditWithLogging() {
+            console.log("取消文本编辑操作开始执行");
+            try {
+                // 清理状态而不保存
+                endTextEditing();
+                console.log("文本编辑已取消并清理状态");
+            } catch (error) {
+                console.error("取消文本编辑时出错:", error);
+            }
+        }
     </script>
-
 </body>
 </html>
-
