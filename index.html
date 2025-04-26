@@ -679,11 +679,16 @@
             
             // 3. 遍历并绘制所有已保存的操作
             const operations = states[tabIndex];
-            operations.forEach(op => drawOperation(ctx, op));
+            
+            // 性能优化：检查操作数量，如果操作太多可以考虑批量处理或分批渲染
+            for (let i = 0; i < operations.length; i++) {
+                drawOperation(ctx, operations[i]);
+            }
             
             // 4. 恢复变换状态
             ctx.restore();
             
+            // 调试信息
             console.log(`Redrew canvas ${tabIndex} with ${operations.length} operations`);
         }
         
@@ -695,8 +700,8 @@
         // Save and restore canvas state (操作对象)
         function saveState(tabIndex, operation) {
             if (!operation) return;
-            if (states[tabIndex].length >= 20) {
-                states[tabIndex].shift(); // Remove oldest state if we have 20
+            if (states[tabIndex].length >= 100) {  // 将历史记录上限从20增加到100
+                states[tabIndex].shift(); // Remove oldest state if we have 100
             }
             
             states[tabIndex].push(operation);
@@ -781,8 +786,15 @@
             // 转换为画布坐标
             const point = transformPoint(clientX, clientY);
             
+            // 与前一个点距离过近时不添加新点，避免生成太多冗余点
+            const lastPoint = currentOperation.points[currentOperation.points.length - 1];
+            const distanceToLast = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
+            
             if (currentOperation.type === 'pen' || currentOperation.type === 'eraser') {
-                currentOperation.points.push(point);
+                // 只有距离大于阈值才添加点，降低不必要的点数量
+                if (distanceToLast > 1 / scale) {
+                    currentOperation.points.push(point);
+                }
             } else if (['rect', 'circle', 'line'].includes(currentOperation.type)) {
                 currentOperation.endPoint = point; // Update endpoint for shapes
             }
@@ -893,8 +905,10 @@
             // 设置绘图样式
             ctx.globalCompositeOperation = 'source-over'; // 确保使用默认模式
             ctx.strokeStyle = op.color || LINE_COLOR;
+            ctx.fillStyle = op.color || LINE_COLOR; // 确保填充色也正确设置
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
+            ctx.miterLimit = 1; // 减少尖角，防止因为角度问题导致线条溢出
             
             // 计算实际线宽
             const actualLineWidth = Math.max((op.lineWidth || LINE_WIDTH) / scale, 0.5); // 确保最小线宽
@@ -902,20 +916,27 @@
             
             // 根据操作类型绘制
             if (op.type === 'pen' && op.points && op.points.length > 0) {
-                ctx.beginPath();
-                
                 if (op.points.length === 1) {
                     // 单点触摸 - 绘制一个小圆点
                     const point = op.points[0];
-                    ctx.fillStyle = ctx.strokeStyle; // 使用线条颜色作为填充色
+                    ctx.beginPath();
                     const radius = Math.max(actualLineWidth / 2, 0.5);
                     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
-                    // 连续线条
+                    // 连续线条 - 使用更平滑的曲线连接
+                    ctx.beginPath();
                     ctx.moveTo(op.points[0].x, op.points[0].y);
-                    for (let i = 1; i < op.points.length; i++) {
-                        ctx.lineTo(op.points[i].x, op.points[i].y);
+                    
+                    // 判断点的数量来决定绘制方法
+                    if (op.points.length === 2) {
+                        // 只有两个点时直接连线
+                        ctx.lineTo(op.points[1].x, op.points[1].y);
+                    } else {
+                        // 多个点时使用平滑曲线
+                        for (let i = 1; i < op.points.length; i++) {
+                            ctx.lineTo(op.points[i].x, op.points[i].y);
+                        }
                     }
                     ctx.stroke();
                 }
@@ -926,12 +947,11 @@
                 ctx.stroke();
             } else if (op.type === 'rect' && op.startPoint && op.endPoint) {
                 ctx.beginPath();
-                ctx.rect(
-                    op.startPoint.x,
-                    op.startPoint.y,
-                    op.endPoint.x - op.startPoint.x,
-                    op.endPoint.y - op.startPoint.y
-                );
+                const x = Math.min(op.startPoint.x, op.endPoint.x);
+                const y = Math.min(op.startPoint.y, op.endPoint.y);
+                const width = Math.abs(op.endPoint.x - op.startPoint.x);
+                const height = Math.abs(op.endPoint.y - op.startPoint.y);
+                ctx.rect(x, y, width, height);
                 ctx.stroke();
             } else if (op.type === 'circle' && op.startPoint && op.endPoint) {
                 const radius = Math.sqrt(
