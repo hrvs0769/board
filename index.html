@@ -318,15 +318,12 @@
         
         .text-edit-controls {
             position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            z-index: 200;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
+            bottom: 10px; /* 修改位置，避免与toolbar重叠 */
+            left: 0;
+            right: 0;
+            z-index: 99999;
+            padding: 10px;
+            pointer-events: auto;
         }
         
         .text-edit-btn {
@@ -360,10 +357,15 @@
             <canvas id="canvas3"></canvas>
             <div class="eraser-cursor" id="eraser-cursor"></div>
             <div class="text-display" id="text-display"></div>
-            <div id="text-edit-controls" style="display: none; position: fixed; bottom: 20px; left: 0; right: 0; z-index: 99999; padding: 10px; pointer-events: auto;">
-                <div style="max-width: 300px; margin: 0 auto; display: flex; justify-content: space-between; background: rgba(255,255,255,0.9); border-radius: 10px; padding: 5px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-                    <div id="text-edit-cancel-btn" style="flex: 1; text-align: center; background: #f2f2f2; color: #333; padding: 15px 0; margin-right: 5px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); user-select: none; pointer-events: auto;">取消</div>
-                    <div id="text-edit-confirm-btn" style="flex: 1; text-align: center; background: #007AFF; color: white; padding: 15px 0; margin-left: 5px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); user-select: none; pointer-events: auto;">确定</div>
+            <div id="text-edit-controls" style="display: none; position: fixed; bottom: 10px; left: 0; right: 0; z-index: 99999; padding: 10px; pointer-events: auto;">
+                <div style="max-width: 360px; margin: 0 auto; display: flex; flex-direction: column; background: rgba(255,255,255,0.95); border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; color: #666; font-size: 14px; padding: 10px 15px; border-bottom: 1px solid #eee;">
+                        <div>长按文本可拖动 • 双指捏合可缩放文本</div>
+                    </div>
+                    <div style="display: flex; padding: 5px;">
+                        <div id="text-edit-cancel-btn" style="flex: 1; text-align: center; background: #f2f2f2; color: #333; padding: 15px 0; margin-right: 5px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); user-select: none; pointer-events: auto;">取消</div>
+                        <div id="text-edit-confirm-btn" style="flex: 1; text-align: center; background: #007AFF; color: white; padding: 15px 0; margin-left: 5px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); user-select: none; pointer-events: auto;">确定</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -423,9 +425,24 @@
     </div>
     
     <div class="popup" id="shape-popup">
-        <div class="popup-item" data-shape="rect">绘制矩形</div>
-        <div class="popup-item" data-shape="circle">绘制圆形</div>
-        <div class="popup-item" data-shape="line">绘制直线</div>
+        <div class="popup-item" data-shape="rect" style="display: flex; align-items: center; justify-content: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#333333" style="margin-right: 8px;">
+                <path d="M120-120v-720h720v720H120Zm80-80h560v-560H200v560Zm0 0v-560 560Z"/>
+            </svg>
+            <span>矩形</span>
+        </div>
+        <div class="popup-item" data-shape="circle" style="display: flex; align-items: center; justify-content: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#333333" style="margin-right: 8px;">
+                <path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/>
+            </svg>
+            <span>圆形</span>
+        </div>
+        <div class="popup-item" data-shape="line" style="display: flex; align-items: center; justify-content: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#333333" style="margin-right: 8px; transform: rotate(45deg);">
+                <path d="M120-120v-80h720v80H120Z"/>
+            </svg>
+            <span>直线</span>
+        </div>
     </div>
     
     <div class="popup" id="more-popup">
@@ -1392,9 +1409,12 @@
                 // 隐藏输入框和遮罩层，允许用户操作文本
                 hideTextInput();
                 
-                // 显示编辑控件
+                // 获取编辑控件
                 const controls = document.getElementById('text-edit-controls');
+                
+                // 显示编辑控件，直接使用HTML中的结构，不再动态创建指导文本
                 controls.style.display = 'block';
+                controls.style.bottom = '10px'; // 确保位置正确
                 
                 // 确保事件处理程序正确绑定
                 setTimeout(() => {
@@ -1540,7 +1560,8 @@
         function bindTextEditButtonEvents() {
             console.log("重新绑定文本编辑按钮事件");
             
-            // 获取按钮元素
+            // 获取控件容器和按钮元素
+            const controls = document.getElementById('text-edit-controls');
             const confirmBtn = document.getElementById('text-edit-confirm-btn');
             const cancelBtn = document.getElementById('text-edit-cancel-btn');
             
@@ -1549,20 +1570,9 @@
                 return;
             }
             
-            // 确保按钮样式正确
-            confirmBtn.style.background = "#007AFF";
-            confirmBtn.style.color = "white";
-            confirmBtn.style.padding = "15px 0";
-            confirmBtn.style.borderRadius = "8px";
-            confirmBtn.style.fontWeight = "bold";
-            confirmBtn.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
-            
-            cancelBtn.style.background = "#f2f2f2";
-            cancelBtn.style.color = "#333";
-            cancelBtn.style.padding = "15px 0";
-            cancelBtn.style.borderRadius = "8px";
-            cancelBtn.style.fontWeight = "bold";
-            cancelBtn.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
+            // 确保控件容器位置和样式正确
+            controls.style.bottom = "10px";
+            controls.style.zIndex = "99999";
             
             // 清除可能存在的旧事件
             confirmBtn.removeEventListener('click', handleConfirmTextClick);
