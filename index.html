@@ -600,7 +600,7 @@
         // 线条属性
         const LINE_WIDTH = 2; // 默认线条宽度
         const LINE_COLOR = '#333333'; // 默认线条颜色
-        const ERASER_SIZE = 100; // 橡皮擦直径
+        const ERASER_SIZE = 50; // 橡皮擦直径
         
         // 触摸状态
         let isPanning = false;
@@ -844,8 +844,8 @@
                 ctx.lineJoin = 'round';
                 
                 // 计算橡皮擦实际宽度并确保最小宽度
-                const eraserWidth = ERASER_SIZE / scale;
-                ctx.lineWidth = Math.max(eraserWidth, 1); // 确保最小宽度为1像素
+                const eraserWidth = Math.max(ERASER_SIZE / scale, 1);
+                ctx.lineWidth = eraserWidth;
                 
                 if (op.points && op.points.length > 0) {
                     ctx.beginPath();
@@ -853,9 +853,9 @@
                     if (op.points.length === 1) {
                         // 单点擦除 - 绘制一个填充圆形
                         const point = op.points[0];
-                        const radius = ctx.lineWidth / 2; // 使用线宽的一半作为半径
+                        const radius = eraserWidth / 2; // 使用线宽的一半作为半径
                         ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-                        ctx.fill(); // 使用填充而不是描边
+                        ctx.fill(); // 使用填充确保单点擦除有效
                     } else {
                         // 路径擦除 - 连接所有点
                         ctx.moveTo(op.points[0].x, op.points[0].y);
@@ -866,7 +866,7 @@
                     }
                 }
                 
-                ctx.restore(); // 恢复之前的上下文状态
+                ctx.restore(); // 恢复之前的上下文状态，确保globalCompositeOperation恢复
                 return; // 提前返回，不执行后面的代码
             }
             
@@ -897,8 +897,8 @@
             ctx.lineJoin = 'round';
             
             // 计算实际线宽
-            const actualLineWidth = (op.lineWidth || LINE_WIDTH) / scale;
-            ctx.lineWidth = Math.max(actualLineWidth, 0.5); // 确保最小线宽
+            const actualLineWidth = Math.max((op.lineWidth || LINE_WIDTH) / scale, 0.5); // 确保最小线宽
+            ctx.lineWidth = actualLineWidth;
             
             // 根据操作类型绘制
             if (op.type === 'pen' && op.points && op.points.length > 0) {
@@ -908,8 +908,8 @@
                     // 单点触摸 - 绘制一个小圆点
                     const point = op.points[0];
                     ctx.fillStyle = ctx.strokeStyle; // 使用线条颜色作为填充色
-                    const radius = ctx.lineWidth / 2;
-                    ctx.arc(point.x, point.y, Math.max(radius, 0.5), 0, Math.PI * 2);
+                    const radius = Math.max(actualLineWidth / 2, 0.5);
+                    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
                     // 连续线条
