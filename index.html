@@ -700,8 +700,8 @@
         // Save and restore canvas state (操作对象)
         function saveState(tabIndex, operation) {
             if (!operation) return;
-            if (states[tabIndex].length >= 100) {  // 将历史记录上限从20增加到100
-                states[tabIndex].shift(); // Remove oldest state if we have 100
+            if (states[tabIndex].length >= 200) {  // 将历史记录上限从100增加到200
+                states[tabIndex].shift(); // Remove oldest state if we have 200
             }
             
             states[tabIndex].push(operation);
@@ -886,8 +886,17 @@
             if (op.type === 'text' && op.text && op.position) {
                 ctx.save();
                 
+                // 获取文本创建时的原始画布缩放比例和当前画布缩放比例
+                const originalScale = op.originalScale || 1.0;
+                const currentScale = scale;
+                
+                // 计算缩放比例 - 当前文本大小应该考虑当前画布缩放与创建时的差异
+                // 这确保文本在不同的画布缩放级别下大小保持视觉一致性
+                const scaleFactor = op.scale;
+                
                 // 设置文本样式
-                ctx.font = `${16 * op.scale}px Arial, sans-serif`;
+                const fontSize = 16 * scaleFactor;
+                ctx.font = `${fontSize}px Arial, sans-serif`;
                 ctx.fillStyle = op.color || '#333333';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -1656,6 +1665,7 @@
             console.log("当前文本:", currentText);
             console.log("文本位置:", textX, textY);
             console.log("文本缩放:", textScale);
+            console.log("画布缩放:", scale);
             
             try {
                 if (!currentText) {
@@ -1667,11 +1677,16 @@
                 const textPoint = transformPoint(textX, textY);
                 console.log("转换后的文本位置:", textPoint);
                 
+                // 计算缩放补偿 - 当画布不是100%缩放时，需要调整文本缩放比例
+                // 这是为了确保文本大小在所有画布缩放级别上视觉上保持一致
+                const adjustedTextScale = textScale;
+                
                 const textOperation = {
                     type: 'text',
                     text: currentText,
                     position: textPoint,
-                    scale: textScale,
+                    scale: adjustedTextScale,
+                    originalScale: scale, // 记录创建时的画布缩放
                     color: '#333333'
                 };
                 
