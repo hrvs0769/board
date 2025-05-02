@@ -764,7 +764,11 @@
                 color: LINE_COLOR
             };
             
+            // 对于橡皮擦，记录当前缩放级别和橡皮擦大小，以便在不同缩放下正确渲染
             if (currentTool === 'eraser') {
+                currentOperation.creationScale = scale; // 记录创建时的缩放级别
+                currentOperation.eraserSize = ERASER_SIZE; // 记录创建时的橡皮擦大小
+                
                 // 显示橡皮擦光标
                 eraserCursor.style.display = 'block';
                 eraserCursor.style.width = `${ERASER_SIZE}px`;
@@ -855,8 +859,13 @@
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 
-                // 计算橡皮擦实际宽度并确保最小宽度
-                const eraserWidth = Math.max(ERASER_SIZE / scale, 1);
+                // 获取橡皮擦创建时的缩放级别和大小，使用默认值防止旧数据问题
+                const creationScale = op.creationScale || 1.0;
+                const eraserSize = op.eraserSize || ERASER_SIZE;
+                
+                // 计算橡皮擦实际宽度，考虑创建时的缩放比例和当前缩放比例的关系
+                // 这确保橡皮擦在不同缩放级别下擦除的相对大小保持一致
+                const eraserWidth = Math.max((eraserSize / creationScale) / scale, 1);
                 ctx.lineWidth = eraserWidth;
                 
                 if (op.points && op.points.length > 0) {
