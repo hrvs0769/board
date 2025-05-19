@@ -947,7 +947,7 @@
                 
                 // 计算橡皮擦实际宽度，考虑创建时的缩放比例和当前缩放比例的关系
                 // 这确保橡皮擦在不同缩放级别下擦除的相对大小保持一致
-                const eraserWidth = Math.max((eraserSize / creationScale) / scale, 1);
+                const eraserWidth = Math.max(eraserSize / creationScale, 0.1); // 修改点：不再除以当前 scale，并设置一个画布单位下的最小宽度
                 ctx.lineWidth = eraserWidth;
                 
                 if (op.points && op.points.length > 0) {
