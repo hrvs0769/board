@@ -63,7 +63,7 @@
         
         .tab {
             flex: 1;
-            padding: 12px 0;
+            padding: 8px 0; /* 原为 12px 0 */
             text-align: center;
             font-size: 15px;
             color: #333;
@@ -82,27 +82,27 @@
         
         .controls {
             position: absolute;
-            top: 55px; /* 调整为标签栏下方，避开"使用说明"标签 */
+            top: 47px; /* 原为 55px, 根据 .tab padding调整 (12px->8px, 高度减少(12-8)*2=8px. 55-8=47) */
             right: 15px;
             z-index: 100;
             display: flex;
             align-items: center;
             background-color: rgba(255, 255, 255, 0.9);
             border: 1px solid #E0E0E0;
-            border-radius: 20px;
-            padding: 4px 8px;
+            border-radius: 15px; /* 原为 20px, 调整以配合可能的高度压缩 */
+            padding: 2px 6px; /* 原为 4px 8px */
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
         }
         
         .scale {
-            padding: 6px 8px;
-            font-size: 15px;
+            padding: 4px 6px; /* 原为 6px 8px */
+            font-size: 14px; /* 原为 15px */
             color: #333;
             font-weight: 500;
         }
         
         .control-button {
-            padding: 6px;
+            padding: 4px; /* 原为 6px */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -349,13 +349,15 @@
         }
     </style>
     <style>
-        /* 历史画板按钮自定义样式 */
+        /* 历史画板按钮自定义样式 - 此整个样式块将被移除或注释 */
+        /* 
         #history-btn {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
         }
+        */
 
         /* 历史画板列表项 */
         .history-item {
@@ -418,15 +420,8 @@
             <div class="tab active" data-tab="1">画板1</div>
             <div class="tab" data-tab="2">画板2</div>
             <div class="tab" data-tab="3">画板3</div>
+            <div class="tab" id="history-btn">历史</div>
             <div class="tab" id="instruction-btn">说明</div>
-            <div class="tab" id="history-btn" style="flex: 0.5; min-width: 60px;"> <!-- 调整flex和min-width以适应新按钮 -->
-                <div class="tool-icon" style="font-size: 20px; margin-bottom: 0;"> <!-- 调整图标大小和边距 -->
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-                        <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm200-120h240v-80H360v80Zm0-120h240v-80H360v80ZM160-240v-480 480Z"/>
-                    </svg>
-                </div>
-                <span style="font-size: 10px;">历史</span> <!-- 调整文字大小 -->
-            </div>
         </div>
         
         <div class="controls">
