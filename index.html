@@ -348,6 +348,50 @@
             font-weight: bold;
         }
     </style>
+    <style>
+        /* 历史画板按钮自定义样式 */
+        #history-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 历史画板列表项 */
+        .history-item {
+            padding: 12px 20px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .history-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        /* Toast 提示消息 */
+        .toast-message {
+            position: fixed;
+            bottom: 100px; /* 调整位置，避免与工具栏重叠 */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none;
+        }
+        .toast-message.show {
+            opacity: 1;
+        }
+    </style>
 </head>
 <body>
     <div class="app">
@@ -375,6 +419,14 @@
             <div class="tab" data-tab="2">画板2</div>
             <div class="tab" data-tab="3">画板3</div>
             <div class="tab" id="instruction-btn">说明</div>
+            <div class="tab" id="history-btn" style="flex: 0.5; min-width: 60px;"> <!-- 调整flex和min-width以适应新按钮 -->
+                <div class="tool-icon" style="font-size: 20px; margin-bottom: 0;"> <!-- 调整图标大小和边距 -->
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                        <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm200-120h240v-80H360v80Zm0-120h240v-80H360v80ZM160-240v-480 480Z"/>
+                    </svg>
+                </div>
+                <span style="font-size: 10px;">历史</span> <!-- 调整文字大小 -->
+            </div>
         </div>
         
         <div class="controls">
@@ -448,22 +500,52 @@
     <div class="popup" id="more-popup">
         <div class="popup-item" id="clear-btn">清除当前画板内容</div>
         <div class="popup-item" id="screenshot-btn">保存jpg图片</div>
+        <div class="popup-item" id="save-btn">保存所有画板</div>
     </div>
     
     <div class="instruction-overlay" id="instruction-overlay">
         <div class="instruction-container">
             <div class="instruction-title">说明</div>
-            <div class="instruction-item">1. 画笔：默认选中画笔，2px粗细</div>
-            <div class="instruction-item">2. 橡皮：切换到橡皮，可擦除画板内容</div>
-            <div class="instruction-item">3. 撤销：点击一次将回退一次操作</div>
-            <div class="instruction-item">4. 形状：点击后可选择矩形、圆形或直线进行绘制</div>
-            <div class="instruction-item">5. 更多：可插入文字、清除画板内容或截图保存</div>
-            <div class="instruction-item">6. 插入文字：输入文字后，可双指缩放、长按移动，点击确定保存</div>
-            <div class="instruction-item">7. 画板：可切换不同画板，内容互不影响</div>
-            <div class="instruction-item">8. 缩放：双指捏合可缩放画板内容（10%-1000%）</div>
-            <div class="instruction-item">9. 移动：双指同向滑动可移动画板内容</div>
-            <div class="instruction-item">10. 恢复：点击恢复按钮可重置缩放和位置</div>
+            <div class="instruction-item">1. 画笔：默认选中画笔，2px粗细，支持自由绘制</div>
+            <div class="instruction-item">2. 橡皮：智能橡皮擦，可精确擦除任意内容</div>
+            <div class="instruction-item">3. 撤销：支持撤销最近200次操作</div>
+            <div class="instruction-item">4. 形状：支持绘制矩形、圆形和直线，点击形状工具选择</div>
+            <div class="instruction-item">5. 文本：支持添加文字，长按可拖动，双指可缩放，最多10字</div>
+            <div class="instruction-item">6. 画板：三个独立画板，内容互不影响，可随时切换</div>
+            <div class="instruction-item">7. 缩放：双指捏合可缩放画板内容（10%-1000%）</div>
+            <div class="instruction-item">8. 移动：双指同向滑动可移动画板内容</div>
+            <div class="instruction-item">9. 恢复：点击右上角重置按钮可恢复原始比例和位置</div>
+            <div class="instruction-item">10. 保存：支持保存为JPG图片，或保存所有画板到本地</div>
+            <div class="instruction-item">11. 历史：支持保存最多3个历史画板，可随时加载</div>
             <div class="instruction-close" id="instruction-close">关闭</div>
+        </div>
+    </div>
+    
+    <!-- 历史画板列表弹窗 -->
+    <div class="instruction-overlay" id="history-list-overlay" style="display: none;">
+        <div class="instruction-container" style="max-width: 400px;">
+            <div class="instruction-title">历史画板</div>
+            <div id="history-items-container" style="max-height: 300px; overflow-y: auto; margin-bottom: 20px; border: 1px solid #eee; border-radius: 4px;">
+                <!-- 历史记录项将通过JS动态添加到这里 -->
+                <!-- 示例: <div class="popup-item history-item" data-key="...">文件名</div> -->
+            </div>
+            <div class="instruction-close" id="history-list-close-btn" style="margin-top: 0;">关闭</div>
+        </div>
+    </div>
+    
+    <!-- 保存确认弹窗 -->
+    <div class="instruction-overlay" id="save-confirm-overlay" style="display: none;">
+        <div class="instruction-container" style="max-width: 350px;">
+            <div class="instruction-title" id="save-confirm-title">保存画板</div>
+            <p id="save-confirm-message" style="text-align: center; margin-bottom: 15px;">是否保存所有画板内容？</p>
+            <div class="text-input-wrapper" style="margin-bottom: 10px;">
+                <input type="text" id="save-filename-input" placeholder="请输入文件名" style="width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <p id="save-overwrite-warning" style="text-align: center; margin-bottom: 15px; color: #E74C3C; display: none;"></p>
+            <div class="text-buttons">
+                <div class="text-button" id="save-cancel-btn" style="background-color: #f2f2f2; color: #333; margin-right: 10px;">取消</div>
+                <div class="text-button" id="save-confirm-action-btn" style="background-color: #007AFF; color: white;">确定</div>
+            </div>
         </div>
     </div>
     
@@ -572,7 +654,7 @@
         const canvases = [canvas1, canvas2, canvas3];
         const contexts = [];
         const states = [[], [], []]; // Array of operation objects for each canvas
-        const redoStates = [[], [], []]; // Array of undone operation objects
+        let redoStates = [[], [], []]; // Array of undone operation objects
         
         let currentTool = 'pen';
         let currentShape = 'rect';
@@ -1375,6 +1457,7 @@
             initCanvases();
             setupEventListeners();
             setupTextEvents(); // 文本事件初始化
+            setupStorageEventListeners(); // 初始化存储相关事件监听器
             
             // 确保按钮事件绑定
             setTimeout(() => {
@@ -1727,6 +1810,290 @@
             } catch (error) {
                 console.error("取消文本编辑时出错:", error);
             }
+        }
+        
+        // --- 新增辅助函数 ---
+        
+        function generateDefaultFileName() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const day = now.getDate().toString().padStart(2, '0');
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+            // 简单的序号，后续可优化为检查已存在文件名并递增
+            return `${year}${month}${day}${hours}${minutes}${seconds}-01`;
+        }
+        
+        function isValidFileName(fileName) {
+            if (!fileName || fileName.trim() === '' || fileName.length > 50) {
+                return false;
+            }
+            // 检查非法字符: / \ : * ? " < > |
+            const illegalChars = /[\/\\:*?"<>|]/;
+            if (illegalChars.test(fileName)) {
+                return false;
+            }
+            return true;
+        }
+
+        // --- Local Storage and History Functions ---
+
+        function showToast(message, duration = 2000) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-message';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            // Trigger reflow to enable transition
+            toast.offsetHeight; 
+
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300); // Allow fade out transition to complete
+            }, duration);
+        }
+
+        const HISTORY_INDEX_KEY = 'whiteboard_history_index';
+        const MAX_HISTORY_ITEMS = 3;
+
+        function getHistoryIndex() {
+            try {
+                const historyJSON = localStorage.getItem(HISTORY_INDEX_KEY);
+                return historyJSON ? JSON.parse(historyJSON) : [];
+            } catch (e) {
+                console.error("获取历史记录失败:", e);
+                return [];
+            }
+        }
+
+        function updateHistoryIndex(newEntry, keyToReplace = null) {
+            let historyIndex = getHistoryIndex();
+            if (keyToReplace) {
+                const entryIndex = historyIndex.findIndex(item => item.key === keyToReplace);
+                if (entryIndex > -1) {
+                    historyIndex[entryIndex] = newEntry;
+                } else { // Should not happen if logic is correct
+                    historyIndex.push(newEntry);
+                }
+            } else {
+                historyIndex.push(newEntry);
+            }
+
+            // Sort by timestamp, newest first (optional, but good for consistency)
+            historyIndex.sort((a, b) => b.timestamp - a.timestamp);
+
+            // Enforce max items (should be handled before calling this if it's an overwrite)
+            // This is a safeguard or if direct push happens.
+            if (historyIndex.length > MAX_HISTORY_ITEMS && !keyToReplace) {
+                 // This case should ideally be handled by overwrite logic,
+                 // but if we add without checking, trim oldest.
+                historyIndex = historyIndex.slice(0, MAX_HISTORY_ITEMS);
+            }
+            
+            try {
+                localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(historyIndex));
+            } catch (e) {
+                console.error("更新历史记录索引失败:", e);
+                showToast("错误：无法更新历史记录索引。");
+            }
+        }
+
+
+        function saveToLocalStorage(fileNameFromDialog) {
+            let historyIndex = getHistoryIndex();
+            let keyToUse;
+            let oldestEntryKey = null;
+
+            if (historyIndex.length >= MAX_HISTORY_ITEMS) {
+                // Find the oldest entry to overwrite (lowest timestamp)
+                historyIndex.sort((a, b) => a.timestamp - b.timestamp); // Sort oldest first
+                oldestEntryKey = historyIndex[0].key; 
+                keyToUse = oldestEntryKey;
+            } else {
+                // Find a new key, e.g., whiteboard_save_0, whiteboard_save_1, ...
+                let nextKeyIndex = 0;
+                const usedKeys = historyIndex.map(entry => entry.key);
+                while (true) {
+                    keyToUse = `whiteboard_save_${nextKeyIndex}`;
+                    if (!usedKeys.includes(keyToUse)) {
+                        break;
+                    }
+                    nextKeyIndex++;
+                     if (nextKeyIndex > 100) { // Safety break
+                        console.error("无法找到可用的存储键。");
+                        showToast("错误: 无法分配存储键。");
+                        return;
+                    }
+                }
+            }
+
+            const dataToSave = {
+                fileName: fileNameFromDialog,
+                timestamp: Date.now(),
+                globalTransform: { scale: scale, offsetX: offsetX, offsetY: offsetY },
+                canvasesData: [
+                    { operations: states[0] || [] },
+                    { operations: states[1] || [] },
+                    { operations: states[2] || [] }
+                ]
+            };
+
+            try {
+                localStorage.setItem(keyToUse, JSON.stringify(dataToSave));
+                const newEntry = { fileName: fileNameFromDialog, key: keyToUse, timestamp: dataToSave.timestamp };
+                
+                if (oldestEntryKey) { // If we are overwriting
+                     updateHistoryIndex(newEntry, oldestEntryKey);
+                } else { // If adding a new entry
+                     updateHistoryIndex(newEntry);
+                }
+                showToast("保存成功，可在历史画板中查看。");
+            } catch (e) {
+                console.error("保存到 localStorage 失败:", e);
+                showToast("错误: 保存失败，存储空间可能已满。");
+            }
+        }
+
+        function showSaveDialog() {
+            const saveConfirmOverlay = document.getElementById('save-confirm-overlay');
+            const filenameInput = document.getElementById('save-filename-input');
+            const overwriteWarning = document.getElementById('save-overwrite-warning');
+            
+            filenameInput.value = generateDefaultFileName();
+            overwriteWarning.style.display = 'none';
+
+            let historyIndex = getHistoryIndex();
+            let oldestEntryToOverwrite = null;
+
+            if (historyIndex.length >= MAX_HISTORY_ITEMS) {
+                historyIndex.sort((a, b) => a.timestamp - b.timestamp); // Sort by oldest first
+                oldestEntryToOverwrite = historyIndex[0];
+                overwriteWarning.textContent = `注意：历史记录已满 (${MAX_HISTORY_ITEMS}条)。此操作将覆盖最旧的画板 "${oldestEntryToOverwrite.fileName}"。`;
+                overwriteWarning.style.display = 'block';
+            }
+
+            saveConfirmOverlay.style.display = 'block';
+
+            // Remove previous event listeners to avoid duplication
+            const confirmBtn = document.getElementById('save-confirm-action-btn');
+            const cancelBtn = document.getElementById('save-cancel-btn');
+            
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            newConfirmBtn.addEventListener('click', () => {
+                const userFileName = filenameInput.value.trim();
+                if (isValidFileName(userFileName)) {
+                    saveToLocalStorage(userFileName);
+                    saveConfirmOverlay.style.display = 'none';
+                } else {
+                    // isValidFileName will show an alert
+                }
+            });
+
+            newCancelBtn.addEventListener('click', () => {
+                saveConfirmOverlay.style.display = 'none';
+            });
+        }
+
+        function loadFromLocalStorage(storageKey) {
+            try {
+                const dataJSON = localStorage.getItem(storageKey);
+                if (!dataJSON) {
+                    showToast("错误：无法加载选定的历史记录。");
+                    return;
+                }
+                const loadedData = JSON.parse(dataJSON);
+
+                if (loadedData && loadedData.globalTransform && loadedData.canvasesData) {
+                    scale = loadedData.globalTransform.scale;
+                    offsetX = loadedData.globalTransform.offsetX;
+                    offsetY = loadedData.globalTransform.offsetY;
+                    scaleDisplay.textContent = `${Math.round(scale * 100)}%`;
+
+                    states[0] = loadedData.canvasesData[0] ? (loadedData.canvasesData[0].operations || []) : [];
+                    states[1] = loadedData.canvasesData[1] ? (loadedData.canvasesData[1].operations || []) : [];
+                    states[2] = loadedData.canvasesData[2] ? (loadedData.canvasesData[2].operations || []) : [];
+                    
+                    redoStates = [[], [], []]; // Clear redo stacks
+
+                    // Switch to the first tab and redraw all. 
+                    // Consider saving/loading active tab index if needed.
+                    switchTab(0); 
+                    // switchTab calls redraw for the currentTab. We need to ensure others are also redrawn if they were visible or for consistency.
+                    // However, since only one canvas is visible at a time, redrawing the active one after state load is usually enough.
+                    // For safety, or if background canvases need update:
+                    // redrawCanvas(0); redrawCanvas(1); redrawCanvas(2);
+                    
+                    showToast(`画板 "${loadedData.fileName}" 已加载。`);
+                } else {
+                    showToast("错误：历史记录数据格式不正确。");
+                }
+            } catch (e) {
+                console.error("从 localStorage 加载失败:", e);
+                showToast("错误：加载历史记录时发生异常。");
+            }
+            document.getElementById('history-list-overlay').style.display = 'none';
+        }
+
+        function showHistoryDialog() {
+            const historyListOverlay = document.getElementById('history-list-overlay');
+            const itemsContainer = document.getElementById('history-items-container');
+            itemsContainer.innerHTML = ''; // Clear previous items
+
+            const historyIndex = getHistoryIndex();
+            historyIndex.sort((a, b) => b.timestamp - a.timestamp); // Newest first
+
+            if (historyIndex.length === 0) {
+                itemsContainer.innerHTML = '<p style="text-align:center; padding: 20px; color: #777;">暂无历史记录</p>';
+            } else {
+                historyIndex.forEach(entry => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'history-item popup-item'; // Use existing styles
+                    itemDiv.textContent = entry.fileName;
+                    itemDiv.setAttribute('data-key', entry.key);
+                    itemDiv.addEventListener('click', () => {
+                        loadFromLocalStorage(entry.key);
+                    });
+                    itemsContainer.appendChild(itemDiv);
+                });
+            }
+            historyListOverlay.style.display = 'block';
+        }
+
+        // Modify existing setupEventListeners or add a new one for storage features
+        function setupStorageEventListeners() {
+            const saveBtn = document.getElementById('save-btn');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', () => {
+                    showSaveDialog();
+                    document.getElementById('more-popup').classList.remove('active'); // Close more popup
+                });
+            }
+
+            const historyBtn = document.getElementById('history-btn');
+            if (historyBtn) {
+                historyBtn.addEventListener('click', showHistoryDialog);
+            }
+
+            const historyListCloseBtn = document.getElementById('history-list-close-btn');
+            if (historyListCloseBtn) {
+                historyListCloseBtn.addEventListener('click', () => {
+                    document.getElementById('history-list-overlay').style.display = 'none';
+                });
+            }
+            // Note: Save dialog cancel/confirm listeners are added dynamically in showSaveDialog
         }
     </script>
 </body>
